@@ -1,16 +1,16 @@
 import { useState, useCallback, useEffect } from "react";
 import { fetchMatchData, generateOpportunities, buildSlip, MARKET_CATEGORIES } from "./api.js";
-import { AboutPage, PrivacyPage, TermsPage, ResponsibleGamblingPage, AffiliateDisclosurePage, PAGE_CSS } from "./Pages.jsx";
+import { AboutPage, PrivacyPage, TermsPage, ResponsibleGamblingPage, AffiliateDisclosurePage, HowItWorksPage, BankrollManagementPage, BettingStrategyPage, PAGE_CSS } from "./Pages.jsx";
 
 // ═══════════════════════════════════════════════════════════════════════
 // STYLES
 // ═══════════════════════════════════════════════════════════════════════
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
-:root{--navy-950:#0a0f1e;--navy-900:#0f1629;--navy-800:#151d37;--navy-700:#1c2744;--navy-600:#263354;--navy-400:#4a6491;--gold-500:#d4af37;--gold-400:#e5c44e;--gold-300:#f0d56a;--green-500:#22c55e;--green-400:#4ade80;--red-500:#ef4444;--red-400:#f87171;--blue-500:#3b82f6;--orange-500:#f59e0b;--text-primary:#f1f5f9;--text-secondary:#94a3b8;--text-muted:#64748b;--glass:rgba(15,22,41,0.7);--glass-border:rgba(212,175,55,0.12)}
+:root{--navy-950:#131a2b;--navy-900:#182032;--navy-800:#1e2840;--navy-700:#253350;--navy-600:#2f4060;--navy-400:#5572a0;--gold-500:#d4af37;--gold-400:#e5c44e;--gold-300:#f0d56a;--green-500:#22c55e;--green-400:#4ade80;--red-500:#ef4444;--red-400:#f87171;--blue-500:#3b82f6;--orange-500:#f59e0b;--text-primary:#f1f5f9;--text-secondary:#a0aec0;--text-muted:#718096;--glass:rgba(24,32,50,0.75);--glass-border:rgba(212,175,55,0.15)}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'DM Sans',sans-serif;background:var(--navy-950);color:var(--text-primary);-webkit-font-smoothing:antialiased}
-.app{min-height:100vh;background:radial-gradient(ellipse 80% 60% at 50% -10%,rgba(212,175,55,0.06) 0%,transparent 60%),var(--navy-950)}
+.app{min-height:100vh;background:radial-gradient(ellipse 80% 60% at 50% -10%,rgba(212,175,55,0.08) 0%,transparent 60%),radial-gradient(ellipse 60% 40% at 80% 90%,rgba(59,130,246,0.04) 0%,transparent 50%),var(--navy-950)}
 .inner{max-width:1100px;margin:0 auto;padding:20px 16px 60px}
 .header{text-align:center;padding:32px 0 28px;position:relative}
 .header::after{content:'';position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:80px;height:2px;background:linear-gradient(90deg,transparent,var(--gold-500),transparent)}
@@ -381,6 +381,9 @@ export default function App() {
               {currentPage === "terms" && <TermsPage />}
               {currentPage === "responsible" && <ResponsibleGamblingPage />}
               {currentPage === "affiliate" && <AffiliateDisclosurePage />}
+              {currentPage === "how-it-works" && <HowItWorksPage />}
+              {currentPage === "bankroll" && <BankrollManagementPage />}
+              {currentPage === "strategy" && <BettingStrategyPage />}
             </>
           )}
 
@@ -591,6 +594,9 @@ export default function App() {
           {/* ── FOOTER ───────────────── */}
           <div className="site-footer">
             <div className="footer-links">
+              <button className="footer-link" onClick={() => { setCurrentPage("how-it-works"); window.scrollTo(0,0); }}>How It Works</button>
+              <button className="footer-link" onClick={() => { setCurrentPage("strategy"); window.scrollTo(0,0); }}>Betting Strategy</button>
+              <button className="footer-link" onClick={() => { setCurrentPage("bankroll"); window.scrollTo(0,0); }}>Bankroll Management</button>
               <button className="footer-link" onClick={() => { setCurrentPage("about"); window.scrollTo(0,0); }}>About</button>
               <button className="footer-link" onClick={() => { setCurrentPage("responsible"); window.scrollTo(0,0); }}>Responsible Gambling</button>
               <button className="footer-link" onClick={() => { setCurrentPage("privacy"); window.scrollTo(0,0); }}>Privacy Policy</button>
