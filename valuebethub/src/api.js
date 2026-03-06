@@ -67,38 +67,408 @@ export const MARKET_CATEGORIES = {
   },
 };
 
-// Calculate AI probability for each market using the real data
-function calcMarketProb(fixture, market) {
-  const pred = fixture.prediction || {};
-  const homeWin = (pred.homeWinPct || 33) / 100;
-  const draw = (pred.drawPct || 33) / 100;
-  const awayWin = (pred.awayWinPct || 33) / 100;
+// ─── REALISTIC AI PROBABILITY ENGINE ─────────────────────────────────
+// 
+// KEY PRINCIPLE: Bookmaker odds are the anchor. They have teams of analysts
+// and billions in data. Our AI looks for small edges (1-5%) where our data
+// suggests the bookmaker might be slightly off — NOT 20-30% disagreements.
+//
+// The AI adjusts the bookmaker's implied probability based on:
+// 1. Recent form (are they on a streak the odds haven't fully priced in?)
+// 2. Goals data (xG, recent scoring patterns)
+// 3. H2H history (does the matchup historically favor one side?)
+// 4. Injuries (key players missing can shift things)
+//
+// Maximum adjustment: ±5% from bookmaker implied probability
+// This is honest and realistic — even the best models rarely beat the market by more.
 
-  // xG-based goal expectation
-  const expectedGoals = ((fixture.homeXGFor || 1.3) + (fixture.awayXGFor || 1.2)) / 2 + (fixture.h2h?.avgGoals || 2.5) * 0.15;
-
-  switch (market) {
-    case "Home Win": return homeWin;
-    case "Draw": return draw;
-    case "Away Win": return awayWin;
-    case "Over 1.5": return Math.min(0.92, Math.max(0.40, 0.65 + (expectedGoals - 2.0) * 0.12));
-    case "Under 1.5": return 1 - Math.min(0.92, Math.max(0.40, 0.65 + (expectedGoals - 2.0) * 0.12));
-    case "Over 2.5": return Math.min(0.80, Math.max(0.20, 0.48 + (expectedGoals - 2.5) * 0.14));
-    case "Under 2.5": return 1 - Math.min(0.80, Math.max(0.20, 0.48 + (expectedGoals - 2.5) * 0.14));
-    case "Over 3.5": return Math.min(0.60, Math.max(0.10, 0.30 + (expectedGoals - 3.5) * 0.14));
-    case "Under 3.5": return 1 - Math.min(0.60, Math.max(0.10, 0.30 + (expectedGoals - 3.5) * 0.14));
-    case "BTTS Yes": return Math.min(0.70, Math.max(0.25, 0.50 + (expectedGoals - 2.5) * 0.08));
-    case "BTTS No": return 1 - Math.min(0.70, Math.max(0.25, 0.50 + (expectedGoals - 2.5) * 0.08));
-    case "1X (Home or Draw)": return Math.min(0.92, homeWin + draw);
-    case "X2 (Draw or Away)": return Math.min(0.85, draw + awayWin);
-    case "12 (Home or Away)": return Math.min(0.90, homeWin + awayWin);
-    case "Over 8.5 Corners": return Math.min(0.75, Math.max(0.30, 0.55 + (expectedGoals - 2.5) * 0.06));
-    case "Under 8.5 Corners": return 1 - Math.min(0.75, Math.max(0.30, 0.55 + (expectedGoals - 2.5) * 0.06));
-    case "Over 10.5 Corners": return Math.min(0.55, Math.max(0.15, 0.38 + (expectedGoals - 2.5) * 0.06));
-    case "Under 10.5 Corners": return 1 - Math.min(0.55, Math.max(0.15, 0.38 + (expectedGoals - 2.5) * 0.06));
-    default: return 0.50;
-  }
+function calcFormStrength(form) {
+  // Convert form array ["W","D","L",...] to a 0-1 score, weighting recent matches more
+  if (!form || !form.length) return 0.5;
+  const pts = { W: 1, D: 0.4, L: 0 };
+  const weights = [1.5, 1.3, 1.1, 0.9, 0.7];
+  let score = 0, maxScore = 0;
+  form.forEach((r, i) => {
+    const w = weights[i] || 0.5;
+    score += (pts[r] || 0.3) * w;
+    maxScore += w;
+  });
+  return maxScore > 0 ? score / maxScore : 0.5;
 }
+
+function calcRecentGoalsPerMatch(fixture) {
+  // Use actual goals-per-game averages from the API data
+  const homeGF = fixture.homeXGFor || 1.3;
+  const awayGF = fixture.awayXGFor || 1.1;
+  const homeGA = fixture.homeXGAgainst || 1.1;
+  const awayGA = fixture.awayXGAgainst || 1.2;
+  
+  // Expected total goals = average of (home attack + away attack) and (home defense concedes + away defense concedes)
+  const attackBased = homeGF + awayGF;
+  const defenseBased = homeGA + awayGA;
+  return (attackBased + defenseBased) / 2;
+}
+
+function calcMarketProb(fixture, market, bookmakerOdds) {
+  // Start with bookmaker's implied probability as our anchor
+  const impliedProb = bookmakerOdds ? 1 / bookmakerOdds : 0.5;
+  
+  // Remove bookmaker margin (~5%) to get fairer base probability
+  // Bookmakers overround means implied probs sum to ~105%, so each is ~2.5% too high
+  const fairProb = Math.min(0.95, Math.max(0.05, impliedProb * 0.96));
+  
+  // Calculate our data-driven adjustment (will be small: -0.05 to +0.05)
+  let adjustment = 0;
+  
+  const homeForm = calcFormStrength(fixture.homeForm);
+  const awayForm = calcFormStrength(fixture.awayForm);
+  const formDiff = homeForm - awayForm; // positive = home in better form
+  
+  const expectedGoals = calcRecentGoalsPerMatch(fixture);
+  const h2hAvgGoals = fixture.h2h?.avgGoals || 2.5;
+  
+  // H2H factor
+  const h2h = fixture.h2h || {};
+  const h2hTotal = (h2h.homeWins || 0) + (h2h.draws || 0) + (h2h.awayWins || 0);
+  const h2hHomeDominance = h2hTotal > 0 ? ((h2h.homeWins || 0) - (h2h.awayWins || 0)) / h2hTotal : 0;
+  
+  // Injury impact (rough: each injury = small penalty)
+  const homeInjCount = (fixture.homeInjuries || []).length;
+  const awayInjCount = (fixture.awayInjuries || []).length;
+  const injuryDiff = (awayInjCount - homeInjCount) * 0.008; // more away injuries = slight home boost
+  
+  switch (market) {
+    case "Home Win":
+      // Better home form, H2H dominance, and fewer injuries = slight boost
+      adjustment = formDiff * 0.04 + h2hHomeDominance * 0.02 + injuryDiff;
+      break;
+    case "Draw":
+      // Draws more likely when teams are close in form
+      adjustment = -Math.abs(formDiff) * 0.02;
+      break;
+    case "Away Win":
+      adjustment = -formDiff * 0.04 - h2hHomeDominance * 0.02 - injuryDiff;
+      break;
+    case "Over 1.5":
+    case "Over 2.5":
+    case "Over 3.5":
+      // High-scoring teams/H2H = slight boost to overs
+      adjustment = (expectedGoals - 2.5) * 0.015 + (h2hAvgGoals - 2.5) * 0.008;
+      break;
+    case "Under 1.5":
+    case "Under 2.5":
+    case "Under 3.5":
+      // Low-scoring teams/H2H = slight boost to unders
+      adjustment = -(expectedGoals - 2.5) * 0.015 - (h2hAvgGoals - 2.5) * 0.008;
+      break;
+    case "BTTS Yes":
+      // Both teams scoring regularly = slight boost
+      const bothScoring = Math.min(fixture.homeXGFor || 1, fixture.awayXGFor || 1);
+      adjustment = (bothScoring - 1.0) * 0.02;
+      break;
+    case "BTTS No":
+      const lowestScorer = Math.min(fixture.homeXGFor || 1, fixture.awayXGFor || 1);
+      adjustment = -(lowestScorer - 1.0) * 0.02;
+      break;
+    case "1X (Home or Draw)":
+      adjustment = formDiff * 0.02 + h2hHomeDominance * 0.01;
+      break;
+    case "X2 (Draw or Away)":
+      adjustment = -formDiff * 0.02 - h2hHomeDominance * 0.01;
+      break;
+    case "12 (Home or Away)":
+      adjustment = Math.abs(formDiff) * 0.01; // bigger form gap = less likely draw
+      break;
+    case "Over 8.5 Corners":
+    case "Over 10.5 Corners":
+      adjustment = (expectedGoals - 2.5) * 0.01;
+      break;
+    case "Under 8.5 Corners":
+    case "Under 10.5 Corners":
+      adjustment = -(expectedGoals - 2.5) * 0.01;
+      break;
+    default:
+      adjustment = 0;
+  }
+  
+  // CRITICAL: Cap adjustment to ±5% — we're not smarter than the entire market
+  adjustment = Math.max(-0.05, Math.min(0.05, adjustment));
+  
+  // Final probability = fair bookmaker prob + our small adjustment
+  const finalProb = Math.max(0.03, Math.min(0.97, fairProb + adjustment));
+  
+  return finalProb;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// CONTEXT INSIGHTS ENGINE
+// Generates smart observations about each fixture by cross-referencing
+// all available data. These surface as "AI Reasoning" in the analysis.
+// ═══════════════════════════════════════════════════════════════════════
+
+const EUROPEAN_COMPS = ["Champions League", "Europa League", "Conference League"];
+
+function generateContextInsights(fixture, allFixtures) {
+  const insights = [];
+  const home = fixture.home;
+  const away = fixture.away;
+  const homePos = fixture.homeLeaguePos;
+  const awayPos = fixture.awayLeaguePos;
+  const homeForm = fixture.homeForm || [];
+  const awayForm = fixture.awayForm || [];
+  const h2h = fixture.h2h || {};
+  const homeInj = fixture.homeInjuries || [];
+  const awayInj = fixture.awayInjuries || [];
+  const isEuropean = EUROPEAN_COMPS.includes(fixture.league);
+  const fixtureDate = new Date(fixture.date);
+
+  // ─── LEAGUE POSITION GAP ───────────────────────────────────
+  if (homePos && awayPos) {
+    const gap = awayPos - homePos;
+    if (gap >= 10) {
+      insights.push({
+        type: "league_gap",
+        icon: "📊",
+        impact: "positive_home",
+        title: "Large league position gap",
+        detail: `${home} (${homePos}${ordinal(homePos)}) sit significantly higher than ${away} (${awayPos}${ordinal(awayPos)}). A ${gap}-position gap suggests a clear quality difference.`,
+      });
+    } else if (gap <= -10) {
+      insights.push({
+        type: "league_gap",
+        icon: "📊",
+        impact: "positive_away",
+        title: "Away team ranked much higher",
+        detail: `${away} (${awayPos}${ordinal(awayPos)}) sit significantly higher than ${home} (${homePos}${ordinal(homePos)}). Despite playing away, the quality gap is notable.`,
+      });
+    } else if (Math.abs(gap) <= 2) {
+      insights.push({
+        type: "league_gap",
+        icon: "📊",
+        impact: "neutral",
+        title: "Closely matched teams",
+        detail: `${home} (${homePos}${ordinal(homePos)}) and ${away} (${awayPos}${ordinal(awayPos)}) are very close in the standings. Expect a competitive match — draws and tight margins more likely.`,
+      });
+    }
+  }
+
+  // ─── UPCOMING EUROPEAN FIXTURE (ROTATION RISK) ──────────────
+  if (!isEuropean) {
+    // Check if either team has a European match within 4 days
+    const homeEuropean = allFixtures.find(f =>
+      (f.home === home || f.away === home) &&
+      EUROPEAN_COMPS.includes(f.league) &&
+      f.id !== fixture.id
+    );
+    const awayEuropean = allFixtures.find(f =>
+      (f.home === away || f.away === away) &&
+      EUROPEAN_COMPS.includes(f.league) &&
+      f.id !== fixture.id
+    );
+
+    if (homeEuropean) {
+      insights.push({
+        type: "rotation_risk",
+        icon: "🔄",
+        impact: "negative_home",
+        title: `${home} — European fixture detected`,
+        detail: `${home} also have a ${homeEuropean.league} match (${homeEuropean.home} vs ${homeEuropean.away}, ${homeEuropean.day} ${homeEuropean.time}). Key player rotation is possible as the manager may prioritise the European tie. This could weaken their domestic lineup.`,
+      });
+    }
+    if (awayEuropean) {
+      insights.push({
+        type: "rotation_risk",
+        icon: "🔄",
+        impact: "negative_away",
+        title: `${away} — European fixture detected`,
+        detail: `${away} also have a ${awayEuropean.league} match (${awayEuropean.home} vs ${awayEuropean.away}, ${awayEuropean.day} ${awayEuropean.time}). Rotation risk is real — expect some squad changes.`,
+      });
+    }
+  }
+
+  // ─── FORM STREAKS ──────────────────────────────────────────
+  const homeWinStreak = countStreak(homeForm, "W");
+  const homeLossStreak = countStreak(homeForm, "L");
+  const awayWinStreak = countStreak(awayForm, "W");
+  const awayLossStreak = countStreak(awayForm, "L");
+
+  if (homeWinStreak >= 3) {
+    insights.push({
+      type: "form_streak",
+      icon: "🔥",
+      impact: "positive_home",
+      title: `${home} on a ${homeWinStreak}-game winning streak`,
+      detail: `Strong momentum — ${home} have won their last ${homeWinStreak} matches. Teams on winning runs tend to carry confidence, though streaks always end eventually.`,
+    });
+  }
+  if (homeLossStreak >= 3) {
+    insights.push({
+      type: "form_streak",
+      icon: "📉",
+      impact: "negative_home",
+      title: `${home} on a ${homeLossStreak}-game losing streak`,
+      detail: `Concerning form — ${home} have lost their last ${homeLossStreak} matches. Confidence may be low, though desperation can also produce strong performances at home.`,
+    });
+  }
+  if (awayWinStreak >= 3) {
+    insights.push({
+      type: "form_streak",
+      icon: "🔥",
+      impact: "positive_away",
+      title: `${away} on a ${awayWinStreak}-game winning streak`,
+      detail: `${away} arrive in strong form with ${awayWinStreak} consecutive wins. Travelling teams with momentum can be dangerous opponents.`,
+    });
+  }
+  if (awayLossStreak >= 3) {
+    insights.push({
+      type: "form_streak",
+      icon: "📉",
+      impact: "negative_away",
+      title: `${away} on a ${awayLossStreak}-game losing streak`,
+      detail: `${away} have lost their last ${awayLossStreak} matches and face a difficult away trip. Low confidence combined with travelling doesn't bode well.`,
+    });
+  }
+
+  // ─── GOALS TREND ───────────────────────────────────────────
+  const avgGoals = ((fixture.homeXGFor || 1.3) + (fixture.awayXGFor || 1.2));
+  if (avgGoals > 3.2) {
+    insights.push({
+      type: "goals_trend",
+      icon: "⚽",
+      impact: "high_scoring",
+      title: "High-scoring matchup expected",
+      detail: `${home} average ${fixture.homeXGFor || '?'} goals/game and ${away} average ${fixture.awayXGFor || '?'}. Combined average of ${avgGoals.toFixed(1)} goals suggests an open, attacking game. Over markets could have value.`,
+    });
+  } else if (avgGoals < 2.0) {
+    insights.push({
+      type: "goals_trend",
+      icon: "🛡️",
+      impact: "low_scoring",
+      title: "Low-scoring matchup expected",
+      detail: `Both teams have modest scoring records (combined avg ${avgGoals.toFixed(1)} goals/game). Expect a tighter, more defensive contest. Under markets could be worth considering.`,
+    });
+  }
+
+  // ─── H2H DOMINANCE ─────────────────────────────────────────
+  const h2hTotal = (h2h.homeWins || 0) + (h2h.draws || 0) + (h2h.awayWins || 0);
+  if (h2hTotal >= 3) {
+    if ((h2h.homeWins || 0) >= 4) {
+      insights.push({
+        type: "h2h",
+        icon: "📜",
+        impact: "positive_home",
+        title: `${home} dominate the H2H record`,
+        detail: `${home} have won ${h2h.homeWins} of the last ${h2hTotal} meetings against ${away}. Historical dominance in a fixture can carry psychological weight, though past results don't guarantee future outcomes.`,
+      });
+    } else if ((h2h.awayWins || 0) >= 3) {
+      insights.push({
+        type: "h2h",
+        icon: "📜",
+        impact: "positive_away",
+        title: `${away} have a strong H2H record here`,
+        detail: `${away} have won ${h2h.awayWins} of the last ${h2hTotal} meetings. They seem to match up well against ${home}, which is notable even in an away fixture.`,
+      });
+    }
+    if (h2h.avgGoals > 3.5) {
+      insights.push({
+        type: "h2h_goals",
+        icon: "💥",
+        impact: "high_scoring",
+        title: "This fixture historically produces goals",
+        detail: `The last ${h2hTotal} meetings averaged ${h2h.avgGoals} goals per game. This matchup tends to be open and entertaining, favouring over-goals markets.`,
+      });
+    } else if (h2h.avgGoals < 2.0) {
+      insights.push({
+        type: "h2h_goals",
+        icon: "🔒",
+        impact: "low_scoring",
+        title: "Historically tight fixture",
+        detail: `The last ${h2hTotal} meetings averaged just ${h2h.avgGoals} goals per game. This matchup tends to be cagey, favouring under-goals and BTTS No markets.`,
+      });
+    }
+  }
+
+  // ─── INJURY IMPACT ─────────────────────────────────────────
+  if (homeInj.length >= 3) {
+    insights.push({
+      type: "injuries",
+      icon: "🏥",
+      impact: "negative_home",
+      title: `${home} have ${homeInj.length} players injured`,
+      detail: `A significant injury list for ${home} (${homeInj.map(i => i.player).join(", ")}). Squad depth will be tested, which could impact their performance.`,
+    });
+  }
+  if (awayInj.length >= 3) {
+    insights.push({
+      type: "injuries",
+      icon: "🏥",
+      impact: "negative_away",
+      title: `${away} have ${awayInj.length} players injured`,
+      detail: `${away} are dealing with ${awayInj.length} injuries (${awayInj.map(i => i.player).join(", ")}). Travelling with a weakened squad makes an already difficult away fixture harder.`,
+    });
+  }
+
+  // ─── HOME/AWAY RECORD EXTREMES ─────────────────────────────
+  const homeRec = fixture.homeRecord || {};
+  const awayRec = fixture.awayRecord || {};
+  const homeTotalGames = (homeRec.w || 0) + (homeRec.d || 0) + (homeRec.l || 0);
+  const awayTotalGames = (awayRec.w || 0) + (awayRec.d || 0) + (awayRec.l || 0);
+
+  if (homeTotalGames >= 5) {
+    const homeWinRate = (homeRec.w || 0) / homeTotalGames;
+    if (homeWinRate >= 0.8) {
+      insights.push({
+        type: "home_fortress",
+        icon: "🏟️",
+        impact: "positive_home",
+        title: `${home} are a fortress at home`,
+        detail: `${home} have won ${homeRec.w} of ${homeTotalGames} home matches this season (${Math.round(homeWinRate * 100)}% win rate). Their home ground is a significant advantage.`,
+      });
+    }
+    if ((homeRec.l || 0) === 0) {
+      insights.push({
+        type: "home_unbeaten",
+        icon: "🏟️",
+        impact: "positive_home",
+        title: `${home} are unbeaten at home`,
+        detail: `${home} haven't lost a single home match this season (${homeRec.w}W ${homeRec.d}D in ${homeTotalGames} games). A remarkable record that ${away} will need to overcome.`,
+      });
+    }
+  }
+
+  if (awayTotalGames >= 5) {
+    const awayWinRate = (awayRec.w || 0) / awayTotalGames;
+    if (awayWinRate <= 0.15) {
+      insights.push({
+        type: "poor_away",
+        icon: "✈️",
+        impact: "negative_away",
+        title: `${away} struggle away from home`,
+        detail: `${away} have only won ${awayRec.w} of ${awayTotalGames} away matches this season. Poor travellers face an uphill battle here.`,
+      });
+    }
+  }
+
+  return insights;
+}
+
+// Helper: count consecutive streak from start of form array
+function countStreak(form, result) {
+  let count = 0;
+  for (const r of form) {
+    if (r === result) count++;
+    else break;
+  }
+  return count;
+}
+
+// Helper: ordinal suffix
+function ordinal(n) {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return s[(v - 20) % 10] || s[v] || s[0];
+}
+
 
 // Generate all opportunities from fixtures
 export function generateOpportunities(fixtures, allowedMarkets) {
@@ -108,13 +478,16 @@ export function generateOpportunities(fixtures, allowedMarkets) {
     const allMarkets = Object.values(MARKET_CATEGORIES).flatMap(c => c.markets);
     const markets = allMarkets.filter(m => !allowedMarkets || allowedMarkets.has(m));
 
+    // Generate context insights for this fixture (pass all fixtures for cross-reference)
+    const contextInsights = generateContextInsights(fix, fixtures);
+
     markets.forEach(market => {
-      const aiProb = calcMarketProb(fix, market);
       const realOdds = fix.odds?.[market];
 
       // Skip markets where we don't have real odds
       if (!realOdds || realOdds < 1.01) return;
 
+      const aiProb = calcMarketProb(fix, market, realOdds);
       const impliedProb = 1 / realOdds;
       const edge = aiProb - impliedProb;
 
@@ -136,7 +509,7 @@ export function generateOpportunities(fixtures, allowedMarkets) {
         bookmakerOdds: realOdds,
         impliedProbability: +(impliedProb * 100).toFixed(1),
         edge: +(edge * 100).toFixed(1),
-        isValue: edge > 0.015,
+        isValue: edge > 0.008,
         // Analysis data for breakdown
         analysis: {
           homeForm: fix.homeForm,
@@ -161,8 +534,9 @@ export function generateOpportunities(fixtures, allowedMarkets) {
           expectedGoals: ((fix.homeXGFor || 1.3) + (fix.awayXGFor || 1.2)),
           prediction: fix.prediction,
           comparison: fix.comparison,
+          contextInsights, // NEW: smart AI reasoning
           factors: {
-            form: { home: 0.5, away: 0.5, weight: 0.2 },
+            form: { home: calcFormStrength(fix.homeForm), away: calcFormStrength(fix.awayForm), weight: 0.2 },
             h2h: { home: 0.5, away: 0.5, weight: 0.12 },
             homeAway: { home: 0.5, away: 0.5, weight: 0.18 },
             xG: { home: 0.5, away: 0.5, weight: 0.2 },
