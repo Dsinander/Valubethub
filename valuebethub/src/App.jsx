@@ -166,10 +166,42 @@ function AnalysisBreakdown({ sel }) {
           {a.awayInjuries?.map((inj, i) => <div key={`ai${i}`} className="inj-item">{inj.status === 'out' ? '🔴' : '🟡'} {sel.away} — {inj.player} — {inj.status} ({inj.returnDate})</div>)}
         </div>
       )}
+      {/* Context Insights — AI Reasoning */}
+      {a.contextInsights?.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 11, color: "var(--gold-500)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 600 }}>
+            🧠 AI Reasoning
+          </div>
+          {a.contextInsights.map((insight, i) => {
+            const bgColor =
+              insight.impact?.includes("positive") ? "rgba(34,197,94,0.06)" :
+              insight.impact?.includes("negative") ? "rgba(239,68,68,0.06)" :
+              insight.impact?.includes("high_scoring") ? "rgba(245,158,11,0.06)" :
+              insight.impact?.includes("low_scoring") ? "rgba(59,130,246,0.06)" :
+              "rgba(148,163,184,0.06)";
+            const borderColor =
+              insight.impact?.includes("positive") ? "rgba(34,197,94,0.12)" :
+              insight.impact?.includes("negative") ? "rgba(239,68,68,0.12)" :
+              insight.impact?.includes("high_scoring") ? "rgba(245,158,11,0.12)" :
+              insight.impact?.includes("low_scoring") ? "rgba(59,130,246,0.12)" :
+              "rgba(148,163,184,0.12)";
+            return (
+              <div key={i} style={{ padding: "8px 10px", borderRadius: 8, background: bgColor, border: `1px solid ${borderColor}`, marginBottom: 6 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)", marginBottom: 2 }}>
+                  {insight.icon} {insight.title}
+                </div>
+                <div style={{ fontSize: 12, lineHeight: 1.5, color: "var(--text-secondary)" }}>
+                  {insight.detail}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
       {/* API Prediction */}
       {a.prediction?.advice && (
         <div style={{ marginTop: 10, fontSize: 12, padding: "8px 10px", borderRadius: 6, background: "rgba(212,175,55,0.06)", border: "1px solid rgba(212,175,55,0.1)" }}>
-          <span style={{ color: "var(--gold-400)", fontWeight: 600 }}>AI Insight:</span>{" "}
+          <span style={{ color: "var(--gold-400)", fontWeight: 600 }}>Model Summary:</span>{" "}
           <span style={{ color: "var(--text-secondary)" }}>{a.prediction.advice}</span>
         </div>
       )}
@@ -275,8 +307,8 @@ export default function App() {
   const profit = slip ? +(potentialReturn - stakeNum).toFixed(2) : 0;
   const winProb = slip ? slip.slipWinProbability : 0;
   const winProbColor = winProb > 25 ? "var(--green-400)" : winProb > 10 ? "var(--gold-400)" : winProb > 5 ? "var(--orange-500)" : "var(--red-400)";
-  const evLabel = slip ? (slip.avgEdge > 5 ? "STRONG" : slip.avgEdge > 2 ? "GOOD" : slip.avgEdge > 0 ? "MARGINAL" : "NEGATIVE") : "";
-  const evClass = slip ? (slip.avgEdge > 5 ? "ev-strong" : slip.avgEdge > 2 ? "ev-good" : slip.avgEdge > 0 ? "ev-marginal" : "ev-negative") : "";
+  const evLabel = slip ? (slip.avgEdge > 3 ? "STRONG" : slip.avgEdge > 1.5 ? "GOOD" : slip.avgEdge > 0 ? "MARGINAL" : "NEGATIVE") : "";
+  const evClass = slip ? (slip.avgEdge > 3 ? "ev-strong" : slip.avgEdge > 1.5 ? "ev-good" : slip.avgEdge > 0 ? "ev-marginal" : "ev-negative") : "";
 
   return (
     <>
