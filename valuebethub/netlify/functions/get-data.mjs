@@ -72,29 +72,21 @@ function getDateStr(offsetDays = 0) {
   return d.toISOString().split("T")[0];
 }
 
-// Fetch fixtures — hybrid approach: date-based (fewer API calls) + wide net
-// Uses 7 API calls (one per day) instead of 19+ (one per league)
+// Fetch fixtures — 3 days, fast and reliable
 async function fetchFixtures() {
-  const today = getDateStr(0);
-  const endDate = getDateStr(6);
-  
-  // Fetch all fixtures for next 7 days in one call using date range
-  // This is much more API-efficient than per-league fetching
   const allFixtures = [];
   
-  // Fetch day by day (7 calls total — safe for rate limits)
-  for (let i = 0; i < 7; i++) {
+  // Fetch 3 days only (3 API calls — fast)
+  for (let i = 0; i < 3; i++) {
     try {
       const dayFixtures = await apiFetch(`/fixtures?date=${getDateStr(i)}`);
       allFixtures.push(...dayFixtures);
     } catch (e) {
       console.error(`Failed to fetch day ${i}:`, e.message);
     }
-    // Small delay between calls to respect rate limits
-    if (i < 6) await new Promise(r => setTimeout(r, 200));
   }
 
-  // Filter to our supported leagues + only scheduled/not started
+  // Filter to our supported leagues + only scheduled
   const supported = allFixtures.filter(f => {
     const leagueId = f.league?.id;
     const status = f.fixture?.status?.short;
@@ -360,15 +352,13 @@ export default async (req) => {
   try {
     // 1. Fetch upcoming fixtures from all supported leagues
     const rawFixtures = await fetchFixtures();
-    // API budget: 7 calls (one per day)
+    // API budget: 3 calls (one per day)
 
     // Sort by date (closest first) for enrichment priority
     rawFixtures.sort((a, b) => new Date(a.fixture.date) - new Date(b.fixture.date));
 
-    // 2. Enrich closest fixtures with full data (predictions, injuries, odds)
-    // Sequential with delays to respect rate limits (10 req/min on free tier)
-    // Each fixture needs 3 calls. We enrich up to 6 fixtures = 18 calls.
-    // Total: 7 + 18 = 25 calls per refresh. Safe for free tier.
+    // 2. Enrich closest fixtures with predictions + odds (2 calls each, in parallel)
+    // Total: 3 (days) + 12 (6 fixtures × 2) = 15 calls. Fast and safe.
     const enrichLimit = Math.min(6, rawFixtures.length);
     const toEnrich = rawFixtures.slice(0, enrichLimit);
     const basicOnly = rawFixtures.slice(enrichLimit);
@@ -377,18 +367,14 @@ export default async (req) => {
     for (const fixture of toEnrich) {
       const fixtureId = fixture.fixture.id;
       try {
-        const [prediction, injuriesData, oddsData] = await Promise.all([
+        const [prediction, oddsData] = await Promise.all([
           fetchPrediction(fixtureId),
-          fetchInjuries(fixtureId),
           fetchOdds(fixtureId),
         ]);
-        enrichedFixtures.push(transformFixture(fixture, prediction, injuriesData, oddsData));
+        enrichedFixtures.push(transformFixture(fixture, prediction, [], oddsData));
       } catch (e) {
-        // If enrichment fails, add with basic data
         enrichedFixtures.push(transformFixture(fixture, null, [], []));
       }
-      // Small delay between fixture batches to respect rate limits
-      await new Promise(r => setTimeout(r, 300));
     }
 
     // Basic fixtures (no predictions/odds — appear in picker but can't generate bets)
