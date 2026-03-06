@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { fetchMatchData, generateOpportunities, buildSlip, MARKET_CATEGORIES } from "./api.js";
+import { AboutPage, PrivacyPage, TermsPage, ResponsibleGamblingPage, AffiliateDisclosurePage, PAGE_CSS } from "./Pages.jsx";
 
 // ═══════════════════════════════════════════════════════════════════════
 // STYLES
@@ -197,6 +198,7 @@ export default function App() {
 
   // App state
   const [phase, setPhase] = useState("input");
+  const [currentPage, setCurrentPage] = useState(null); // null = main app, or "about", "privacy", etc.
   const [loadProgress, setLoadProgress] = useState(0);
   const [loadStage, setLoadStage] = useState(0);
   const [slip, setSlip] = useState(null);
@@ -278,7 +280,7 @@ export default function App() {
 
   return (
     <>
-      <style>{CSS}</style>
+      <style>{CSS}{PAGE_CSS}</style>
       <div className="app">
         <div className="inner">
           <div className="header">
@@ -289,6 +291,21 @@ export default function App() {
             <div className="header-sub">AI-Powered Smart Bet Generator</div>
           </div>
 
+          {/* ── STATIC PAGES ──────────── */}
+          {currentPage && (
+            <>
+              <button className="back-btn" onClick={() => setCurrentPage(null)}>← Back to Generator</button>
+              {currentPage === "about" && <AboutPage />}
+              {currentPage === "privacy" && <PrivacyPage />}
+              {currentPage === "terms" && <TermsPage />}
+              {currentPage === "responsible" && <ResponsibleGamblingPage />}
+              {currentPage === "affiliate" && <AffiliateDisclosurePage />}
+            </>
+          )}
+
+          {/* ── MAIN APP ─────────────── */}
+          {!currentPage && (
+            <>
           {/* Data loading state */}
           {dataLoading && (
             <div className="data-status"><div className="spinner" /><div style={{ fontSize: 16, fontWeight: 600 }}>Loading today's fixtures...</div><div style={{ fontSize: 13, marginTop: 8 }}>Fetching real match data, odds, form, and injuries</div></div>
@@ -444,7 +461,24 @@ export default function App() {
             </>
           )}
 
-          <div className="disclaimer">⚠️ Gambling involves risk. Predictions are statistical, not guaranteed.<br />Always bet responsibly. 18+ only.<br /><span style={{ color: "var(--text-muted)" }}>ValueBetHub © 2026 — Multi-factor analysis for smarter betting.</span></div>
+          <div className="disclaimer">⚠️ Gambling involves risk. Predictions are statistical, not guaranteed.<br />Always bet responsibly. 18+ only.</div>
+            </>
+          )}
+
+          {/* ── FOOTER ───────────────── */}
+          <div className="site-footer">
+            <div className="footer-links">
+              <button className="footer-link" onClick={() => { setCurrentPage("about"); window.scrollTo(0,0); }}>About</button>
+              <button className="footer-link" onClick={() => { setCurrentPage("responsible"); window.scrollTo(0,0); }}>Responsible Gambling</button>
+              <button className="footer-link" onClick={() => { setCurrentPage("privacy"); window.scrollTo(0,0); }}>Privacy Policy</button>
+              <button className="footer-link" onClick={() => { setCurrentPage("terms"); window.scrollTo(0,0); }}>Terms of Service</button>
+              <button className="footer-link" onClick={() => { setCurrentPage("affiliate"); window.scrollTo(0,0); }}>Affiliate Disclosure</button>
+            </div>
+            <div className="footer-copy">
+              ValueBetHub © 2026 — AI-powered multi-factor analysis for smarter betting.<br />
+              18+ only. Gamble responsibly. ValueBetHub is not a bookmaker or gambling operator.
+            </div>
+          </div>
         </div>
       </div>
     </>
