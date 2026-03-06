@@ -72,29 +72,38 @@ function getDateStr(offsetDays = 0) {
   return d.toISOString().split("T")[0];
 }
 
-// Fetch fixtures by LEAGUE — guarantees we get every upcoming match
-// Uses /fixtures?league=ID&next=5 which returns the next 5 scheduled fixtures per league
+// Fetch fixtures — hybrid approach: date-based (fewer API calls) + wide net
+// Uses 7 API calls (one per day) instead of 19+ (one per league)
 async function fetchFixtures() {
-  const leagueIds = Object.keys(LEAGUE_IDS).map(Number);
+  const today = getDateStr(0);
+  const endDate = getDateStr(6);
   
-  // Fetch next fixtures for each league in parallel
-  // Each call returns up to 5 upcoming fixtures for that league
-  const promises = leagueIds.map(id =>
-    apiFetch(`/fixtures?league=${id}&next=5`).catch(() => [])
-  );
+  // Fetch all fixtures for next 7 days in one call using date range
+  // This is much more API-efficient than per-league fetching
+  const allFixtures = [];
   
-  const results = await Promise.all(promises);
-  const all = results.flat();
+  // Fetch day by day (7 calls total — safe for rate limits)
+  for (let i = 0; i < 7; i++) {
+    try {
+      const dayFixtures = await apiFetch(`/fixtures?date=${getDateStr(i)}`);
+      allFixtures.push(...dayFixtures);
+    } catch (e) {
+      console.error(`Failed to fetch day ${i}:`, e.message);
+    }
+    // Small delay between calls to respect rate limits
+    if (i < 6) await new Promise(r => setTimeout(r, 200));
+  }
 
-  // Filter out any already started/finished (shouldn't happen with 'next' but just in case)
-  const upcoming = all.filter(f => {
+  // Filter to our supported leagues + only scheduled/not started
+  const supported = allFixtures.filter(f => {
+    const leagueId = f.league?.id;
     const status = f.fixture?.status?.short;
-    return ["NS", "TBD", "PST"].includes(status);
+    return LEAGUE_IDS[leagueId] && ["NS", "TBD", "PST"].includes(status);
   });
 
-  // Remove duplicates (a team could appear in both league and cup)
+  // Remove duplicates
   const seen = new Set();
-  return upcoming.filter(f => {
+  return supported.filter(f => {
     const id = f.fixture?.id;
     if (seen.has(id)) return false;
     seen.add(id);
@@ -351,29 +360,36 @@ export default async (req) => {
   try {
     // 1. Fetch upcoming fixtures from all supported leagues
     const rawFixtures = await fetchFixtures();
-    // API budget: ~20 calls for fixtures (1 per league)
+    // API budget: 7 calls (one per day)
 
     // Sort by date (closest first) for enrichment priority
     rawFixtures.sort((a, b) => new Date(a.fixture.date) - new Date(b.fixture.date));
 
-    // 2. Enrich closest 12 fixtures with full data (predictions, injuries, odds)
-    // API budget: 12 × 3 = 36 calls. Total: ~56 calls per refresh.
-    // With 12h cache = ~56 calls/day (well within free tier of 100/day)
-    const enrichLimit = Math.min(12, rawFixtures.length);
+    // 2. Enrich closest fixtures with full data (predictions, injuries, odds)
+    // Sequential with delays to respect rate limits (10 req/min on free tier)
+    // Each fixture needs 3 calls. We enrich up to 6 fixtures = 18 calls.
+    // Total: 7 + 18 = 25 calls per refresh. Safe for free tier.
+    const enrichLimit = Math.min(6, rawFixtures.length);
     const toEnrich = rawFixtures.slice(0, enrichLimit);
     const basicOnly = rawFixtures.slice(enrichLimit);
 
-    const enrichedFixtures = await Promise.all(
-      toEnrich.map(async (fixture) => {
-        const fixtureId = fixture.fixture.id;
+    const enrichedFixtures = [];
+    for (const fixture of toEnrich) {
+      const fixtureId = fixture.fixture.id;
+      try {
         const [prediction, injuriesData, oddsData] = await Promise.all([
           fetchPrediction(fixtureId),
           fetchInjuries(fixtureId),
           fetchOdds(fixtureId),
         ]);
-        return transformFixture(fixture, prediction, injuriesData, oddsData);
-      })
-    );
+        enrichedFixtures.push(transformFixture(fixture, prediction, injuriesData, oddsData));
+      } catch (e) {
+        // If enrichment fails, add with basic data
+        enrichedFixtures.push(transformFixture(fixture, null, [], []));
+      }
+      // Small delay between fixture batches to respect rate limits
+      await new Promise(r => setTimeout(r, 300));
+    }
 
     // Basic fixtures (no predictions/odds — appear in picker but can't generate bets)
     const basicFixtures = basicOnly.map(fixture => transformFixture(fixture, null, [], []));
