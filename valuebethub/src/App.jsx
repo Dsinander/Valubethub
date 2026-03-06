@@ -104,7 +104,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--navy-950);color:var(--tex
 .fixture-check.checked{border-color:var(--gold-500);background:var(--gold-500);color:var(--navy-950)}
 .fixture-teams{flex:1;color:var(--text-secondary)}
 .fixture-teams.selected{color:var(--text-primary)}
-.fixture-day-time{font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;min-width:65px;text-align:right}
+.fixture-day-time{font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;min-width:100px;text-align:right}
 .picker-controls{display:flex;gap:8px;margin-bottom:12px}
 .picker-control-btn{padding:6px 12px;border-radius:6px;border:1px solid var(--navy-600);background:var(--navy-800);color:var(--text-secondary);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;transition:all .2s}
 .picker-control-btn:hover{border-color:var(--navy-400);color:var(--text-primary)}
@@ -227,6 +227,7 @@ export default function App() {
   const [selectedFixtures, setSelectedFixtures] = useState([]);
   const [expandLeagues, setExpandLeagues] = useState({});
   const [selectedMarketTypes, setSelectedMarketTypes] = useState(() => Object.keys(MARKET_CATEGORIES));
+  const [timeRange, setTimeRange] = useState("all"); // "today", "tomorrow", "weekend", "all"
 
   // App state
   const [phase, setPhase] = useState("input");
@@ -253,23 +254,71 @@ export default function App() {
     loadData();
   }, []);
 
-  // Derived
-  const leagues = [...new Set(fixtures.map(f => f.league))];
+  // Time range filtering
+  const filterByTimeRange = (fixtureList) => {
+    if (timeRange === "all") return fixtureList;
+    const now = new Date();
+    const todayStr = now.toISOString().split("T")[0];
+    const tomorrowStr = new Date(now.getTime() + 86400000).toISOString().split("T")[0];
+    const dayOfWeek = now.getDay(); // 0=Sun, 6=Sat
+
+    return fixtureList.filter(f => {
+      const fDate = f.date;
+      if (timeRange === "today") return fDate === todayStr;
+      if (timeRange === "tomorrow") return fDate === tomorrowStr;
+      if (timeRange === "weekend") {
+        // Find this weekend: Saturday and Sunday
+        const daysUntilSat = (6 - dayOfWeek + 7) % 7 || 7;
+        const sat = new Date(now.getTime() + daysUntilSat * 86400000);
+        // If today is Saturday or Sunday, include today
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+          const satStr = dayOfWeek === 6 ? todayStr : new Date(now.getTime() - 86400000).toISOString().split("T")[0];
+          const sunStr = dayOfWeek === 0 ? todayStr : tomorrowStr;
+          return fDate === satStr || fDate === sunStr;
+        }
+        const satStr = sat.toISOString().split("T")[0];
+        const sun = new Date(sat.getTime() + 86400000);
+        const sunStr = sun.toISOString().split("T")[0];
+        return fDate === satStr || fDate === sunStr;
+      }
+      return true;
+    });
+  };
+
+  const visibleFixtures = filterByTimeRange(fixtures);
+
+  // Auto-select all visible fixtures when time range changes
+  useEffect(() => {
+    const indices = [];
+    visibleFixtures.forEach(vf => {
+      const idx = fixtures.findIndex(f => f.id === vf.id);
+      if (idx >= 0) indices.push(idx);
+    });
+    setSelectedFixtures(indices);
+  }, [timeRange, fixtures.length]);
+
+  // Derived — use visibleFixtures for the picker
+  const leagues = [...new Set(visibleFixtures.map(f => f.league))];
   const fixturesByLeague = {};
-  leagues.forEach(l => { fixturesByLeague[l] = fixtures.map((f, i) => ({ ...f, _idx: i })).filter(f => f.league === l); });
+  leagues.forEach(l => {
+    fixturesByLeague[l] = visibleFixtures.map((f, i) => {
+      const origIdx = fixtures.findIndex(of => of.id === f.id);
+      return { ...f, _idx: origIdx };
+    }).filter(f => f.league === l);
+  });
 
   const toggleLeague = (league) => {
     const indices = fixturesByLeague[league].map(f => f._idx);
     const allSelected = indices.every(i => selectedFixtures.includes(i));
     if (allSelected) {
       const remaining = selectedFixtures.filter(i => !indices.includes(i));
-      if (remaining.length >= 2) setSelectedFixtures(remaining);
+      if (remaining.length >= 1) setSelectedFixtures(remaining);
     } else {
       setSelectedFixtures(prev => [...new Set([...prev, ...indices])]);
     }
   };
   const toggleFixture = (idx) => {
-    setSelectedFixtures(prev => prev.includes(idx) ? (prev.length <= 2 ? prev : prev.filter(i => i !== idx)) : [...prev, idx]);
+    setSelectedFixtures(prev => prev.includes(idx) ? (prev.length <= 1 ? prev : prev.filter(i => i !== idx)) : [...prev, idx]);
   };
   const toggleMarketType = (key) => {
     setSelectedMarketTypes(prev => prev.includes(key) ? (prev.length <= 1 ? prev : prev.filter(k => k !== key)) : [...prev, key]);
@@ -361,7 +410,7 @@ export default function App() {
                 <div className="form-grid">
                   <div className="field"><label className="field-label">Target Winnings</label><div className="currency-input"><span className="currency-symbol">€</span><input className="field-input" type="number" value={targetWinnings} onChange={e => setTargetWinnings(e.target.value)} /></div></div>
                   <div className="field"><label className="field-label">Your Stake</label><div className="currency-input"><span className="currency-symbol">€</span><input className="field-input" type="number" value={stake} onChange={e => setStake(e.target.value)} /></div></div>
-                  <div className="field"><label className="field-label">Selections (2-{Math.min(8, selectedFixtures.length)})</label><input className="field-input" type="number" min="2" max={Math.min(8, selectedFixtures.length)} value={numSelections} onChange={e => setNumSelections(e.target.value)} /></div>
+                  <div className="field"><label className="field-label">Selections (1-{Math.min(8, selectedFixtures.length)})</label><input className="field-input" type="number" min="1" max={Math.min(8, selectedFixtures.length)} value={numSelections} onChange={e => setNumSelections(e.target.value)} /></div>
                   <div className="field"><label className="field-label">Risk Level</label>
                     <div className="risk-options">{["conservative", "balanced", "aggressive"].map(r => <button key={r} className={`risk-btn ${riskLevel === r ? `active-${r}` : ""}`} onClick={() => setRiskLevel(r)}>{r === "conservative" ? "🛡 Safe" : r === "balanced" ? "⚖️ Balanced" : "🔥 Bold"}</button>)}</div>
                   </div>
@@ -382,11 +431,41 @@ export default function App() {
 
               {/* Fixture Picker */}
               <div className="card">
-                <div className="card-title">Fixtures <span className="badge">{selectedFixtures.length}/{fixtures.length}</span></div>
+                <div className="card-title">Fixtures <span className="badge">{selectedFixtures.length}/{visibleFixtures.length}</span></div>
+                {/* Time Range Filter */}
+                <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+                  {[
+                    { key: "today", label: "Today" },
+                    { key: "tomorrow", label: "Tomorrow" },
+                    { key: "weekend", label: "Weekend" },
+                    { key: "all", label: "Next 7 Days" },
+                  ].map(t => (
+                    <button key={t.key}
+                      onClick={() => setTimeRange(t.key)}
+                      style={{
+                        padding: "7px 14px", borderRadius: 8, fontSize: 13, fontWeight: 500,
+                        fontFamily: "'DM Sans',sans-serif", cursor: "pointer", transition: "all 0.2s",
+                        border: timeRange === t.key ? "1px solid var(--gold-500)" : "1px solid var(--navy-600)",
+                        background: timeRange === t.key ? "rgba(212,175,55,0.12)" : "var(--navy-800)",
+                        color: timeRange === t.key ? "var(--gold-400)" : "var(--text-secondary)",
+                      }}>
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
                 <div className="picker-controls">
-                  <button className="picker-control-btn" onClick={() => setSelectedFixtures(fixtures.map((_, i) => i))}>Select All</button>
+                  <button className="picker-control-btn" onClick={() => {
+                    const indices = [];
+                    visibleFixtures.forEach(vf => { const idx = fixtures.findIndex(f => f.id === vf.id); if (idx >= 0) indices.push(idx); });
+                    setSelectedFixtures(indices);
+                  }}>Select All</button>
                   <button className="picker-control-btn" onClick={() => setSelectedFixtures([])}>Clear</button>
                 </div>
+                {visibleFixtures.length === 0 && (
+                  <div style={{ textAlign: "center", padding: "20px 0", color: "var(--text-muted)", fontSize: 13 }}>
+                    No fixtures found for this time range. Try selecting a different period.
+                  </div>
+                )}
                 {leagues.map(league => {
                   const lf = fixturesByLeague[league];
                   const selCount = lf.filter(f => selectedFixtures.includes(f._idx)).length;
@@ -401,14 +480,14 @@ export default function App() {
                       </div>
                       {expanded && lf.map(fix => {
                         const isSel = selectedFixtures.includes(fix._idx);
-                        return <div key={fix._idx} className={`fixture-row ${isSel ? "selected" : ""}`} onClick={() => toggleFixture(fix._idx)}><div className={`fixture-check ${isSel ? "checked" : ""}`}>{isSel ? "✓" : ""}</div><div className={`fixture-teams ${isSel ? "selected" : ""}`}>{fix.home} vs {fix.away}</div><div className="fixture-day-time">{fix.day} {fix.time}</div></div>;
+                        return <div key={fix._idx} className={`fixture-row ${isSel ? "selected" : ""}`} onClick={() => toggleFixture(fix._idx)}><div className={`fixture-check ${isSel ? "checked" : ""}`}>{isSel ? "✓" : ""}</div><div className={`fixture-teams ${isSel ? "selected" : ""}`}>{fix.home} vs {fix.away}</div><div className="fixture-day-time">{fix.day} {fix.date?.slice(5)} {fix.time}</div></div>;
                       })}
                     </div>
                   );
                 })}
               </div>
 
-              <button className="gen-btn" onClick={handleGenerate} disabled={selectedFixtures.length < 2 || selectedMarketTypes.length === 0}>
+              <button className="gen-btn" onClick={handleGenerate} disabled={selectedFixtures.length < 1 || selectedMarketTypes.length === 0}>
                 <span style={{ fontSize: 20 }}>🎯</span> GENERATE SMART SLIP
               </button>
             </>
@@ -430,7 +509,7 @@ export default function App() {
               <div className="card">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
                   <div>
-                    <div className="card-title" style={{ marginBottom: 4 }}>AI-Generated Accumulator</div>
+                    <div className="card-title" style={{ marginBottom: 4 }}>{slip.selections.length === 1 ? "AI-Generated Single Bet" : "AI-Generated Accumulator"}</div>
                     <div style={{ fontSize: 13, color: "var(--text-muted)" }}>{slip.selections.length} selections · {slip.valueCount} value bets · Real bookmaker odds</div>
                   </div>
                   <div className={`ev-badge ${evClass}`}>Avg Edge: {slip.avgEdge > 0 ? "+" : ""}{slip.avgEdge}% {evLabel}</div>
