@@ -75,16 +75,30 @@ function getDateStr(offsetDays = 0) {
 // Fetch fixtures — 3 days, fast and reliable
 async function fetchFixtures() {
   const allFixtures = [];
+  const debugLog = [];
   
   // Fetch 3 days only (3 API calls — fast)
   for (let i = 0; i < 3; i++) {
+    const dateStr = getDateStr(i);
     try {
-      const dayFixtures = await apiFetch(`/fixtures?date=${getDateStr(i)}`);
+      const dayFixtures = await apiFetch(`/fixtures?date=${dateStr}`);
+      debugLog.push(`Day ${dateStr}: ${dayFixtures.length} total fixtures`);
       allFixtures.push(...dayFixtures);
     } catch (e) {
-      console.error(`Failed to fetch day ${i}:`, e.message);
+      debugLog.push(`Day ${dateStr}: FAILED - ${e.message}`);
     }
   }
+
+  console.log("Fetch debug:", debugLog.join(" | "));
+  console.log("Supported league IDs:", Object.keys(LEAGUE_IDS).join(", "));
+  
+  // Log what league IDs are in the response
+  const foundLeagueIds = [...new Set(allFixtures.map(f => f.league?.id))];
+  console.log("League IDs found in API response:", foundLeagueIds.join(", "));
+  
+  // Log how many match each supported league
+  const matchingFixtures = allFixtures.filter(f => LEAGUE_IDS[f.league?.id]);
+  console.log(`Matching supported leagues: ${matchingFixtures.length} of ${allFixtures.length}`);
 
   // Filter to our supported leagues + only scheduled
   const supported = allFixtures.filter(f => {
@@ -92,6 +106,8 @@ async function fetchFixtures() {
     const status = f.fixture?.status?.short;
     return LEAGUE_IDS[leagueId] && ["NS", "TBD", "PST"].includes(status);
   });
+  
+  console.log(`After status filter (NS/TBD/PST): ${supported.length} fixtures`);
 
   // Remove duplicates
   const seen = new Set();
@@ -338,9 +354,9 @@ export default async (req) => {
     return new Response(null, { status: 204, headers });
   }
 
-  // Check in-memory cache
+  // Check in-memory cache (only if it has actual data)
   const now = Date.now();
-  if (cache.data && now - cache.timestamp < CACHE_TTL) {
+  if (cache.data && cache.data.length > 0 && now - cache.timestamp < CACHE_TTL) {
     return new Response(JSON.stringify({
       success: true,
       cached: true,
@@ -382,14 +398,22 @@ export default async (req) => {
 
     const allFixtures = [...enrichedFixtures, ...basicFixtures];
 
-    // Update cache
-    cache = { data: allFixtures, timestamp: now };
+    // NEVER cache empty results — something went wrong, try again next time
+    if (allFixtures.length > 0) {
+      cache = { data: allFixtures, timestamp: now };
+    }
 
     return new Response(JSON.stringify({
       success: true,
       cached: false,
       lastUpdated: new Date(now).toISOString(),
       fixtures: allFixtures,
+      debug: {
+        rawCount: rawFixtures.length,
+        enrichedCount: enrichedFixtures.length,
+        basicCount: basicFixtures.length,
+        datesFetched: [getDateStr(0), getDateStr(1), getDateStr(2)],
+      },
     }), { headers });
 
   } catch (error) {
