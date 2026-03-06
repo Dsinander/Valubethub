@@ -400,6 +400,18 @@ export default function App() {
             </div>
           )}
 
+          {/* No fixtures found */}
+          {!dataLoading && !dataError && fixtures.length === 0 && (
+            <div className="card" style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>⚽</div>
+              <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: "var(--text-primary)" }}>No fixtures loaded</div>
+              <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16, lineHeight: 1.6 }}>
+                The data server may still be warming up. This usually resolves within a minute on first load.
+              </div>
+              <button className="gen-btn" style={{ maxWidth: 200, margin: "0 auto" }} onClick={() => window.location.reload()}>Reload</button>
+            </div>
+          )}
+
           {/* ── INPUT ─────────────────── */}
           {!dataLoading && fixtures.length > 0 && phase === "input" && (
             <>
