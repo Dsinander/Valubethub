@@ -25,6 +25,7 @@ const LEAGUE_IDS = {
   529: "DFB Pokal",
   137: "Coppa Italia",
   66: "Coupe de France",
+  48: "EFL Cup",
 };
 
 const LEAGUE_FLAGS = {
@@ -46,11 +47,12 @@ const LEAGUE_FLAGS = {
   "DFB Pokal": "🇩🇪",
   "Coppa Italia": "🇮🇹",
   "Coupe de France": "🇫🇷",
+  "EFL Cup": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
 };
 
 // Simple in-memory cache (persists across warm function invocations)
 let cache = { data: null, timestamp: 0 };
-const CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours (conserve API requests on free tier)
+const CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours
 
 async function apiFetch(endpoint) {
   const res = await fetch(`${API_BASE}${endpoint}`, {
@@ -70,21 +72,33 @@ function getDateStr(offsetDays = 0) {
   return d.toISOString().split("T")[0];
 }
 
-// Fetch fixtures for the next 7 days
+// Fetch fixtures by LEAGUE — guarantees we get every upcoming match
+// Uses /fixtures?league=ID&next=5 which returns the next 5 scheduled fixtures per league
 async function fetchFixtures() {
-  // Fetch 7 days of fixtures
-  const datePromises = [];
-  for (let i = 0; i < 7; i++) {
-    datePromises.push(apiFetch(`/fixtures?date=${getDateStr(i)}`));
-  }
-  const results = await Promise.all(datePromises);
+  const leagueIds = Object.keys(LEAGUE_IDS).map(Number);
+  
+  // Fetch next fixtures for each league in parallel
+  // Each call returns up to 5 upcoming fixtures for that league
+  const promises = leagueIds.map(id =>
+    apiFetch(`/fixtures?league=${id}&next=5`).catch(() => [])
+  );
+  
+  const results = await Promise.all(promises);
   const all = results.flat();
 
-  // Filter to our supported leagues + only scheduled/not started
-  return all.filter(f => {
-    const leagueId = f.league?.id;
+  // Filter out any already started/finished (shouldn't happen with 'next' but just in case)
+  const upcoming = all.filter(f => {
     const status = f.fixture?.status?.short;
-    return LEAGUE_IDS[leagueId] && ["NS", "TBD", "PST"].includes(status);
+    return ["NS", "TBD", "PST"].includes(status);
+  });
+
+  // Remove duplicates (a team could appear in both league and cup)
+  const seen = new Set();
+  return upcoming.filter(f => {
+    const id = f.fixture?.id;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
   });
 }
 
@@ -335,15 +349,17 @@ export default async (req) => {
   }
 
   try {
-    // 1. Fetch upcoming fixtures across 7 days
+    // 1. Fetch upcoming fixtures from all supported leagues
     const rawFixtures = await fetchFixtures();
+    // API budget: ~20 calls for fixtures (1 per league)
 
     // Sort by date (closest first) for enrichment priority
     rawFixtures.sort((a, b) => new Date(a.fixture.date) - new Date(b.fixture.date));
 
-    // 2. Enrich up to 20 fixtures with full data (predictions, injuries, odds)
-    // Remaining fixtures get basic data only (visible in picker but no AI analysis)
-    const enrichLimit = Math.min(20, rawFixtures.length);
+    // 2. Enrich closest 12 fixtures with full data (predictions, injuries, odds)
+    // API budget: 12 × 3 = 36 calls. Total: ~56 calls per refresh.
+    // With 12h cache = ~56 calls/day (well within free tier of 100/day)
+    const enrichLimit = Math.min(12, rawFixtures.length);
     const toEnrich = rawFixtures.slice(0, enrichLimit);
     const basicOnly = rawFixtures.slice(enrichLimit);
 
