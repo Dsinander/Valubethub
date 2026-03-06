@@ -4,7 +4,7 @@
 
 const API_BASE = "https://v3.football.api-sports.io";
 
-// Major leagues we support (API-Football league IDs)
+// Major leagues + domestic cups (API-Football league IDs)
 const LEAGUE_IDS = {
   39: "Premier League",        // England
   140: "La Liga",              // Spain
@@ -13,9 +13,18 @@ const LEAGUE_IDS = {
   61: "Ligue 1",              // France
   113: "Allsvenskan",          // Sweden
   88: "Eredivisie",           // Netherlands
+  94: "Primeira Liga",         // Portugal
+  203: "Super Lig",            // Turkey
+  144: "Jupiler Pro League",   // Belgium
   2: "Champions League",
   3: "Europa League",
   848: "Conference League",
+  // Domestic cups
+  45: "FA Cup",
+  143: "Copa del Rey",
+  529: "DFB Pokal",
+  137: "Coppa Italia",
+  66: "Coupe de France",
 };
 
 const LEAGUE_FLAGS = {
@@ -26,14 +35,22 @@ const LEAGUE_FLAGS = {
   "Ligue 1": "🇫🇷",
   "Allsvenskan": "🇸🇪",
   "Eredivisie": "🇳🇱",
+  "Primeira Liga": "🇵🇹",
+  "Super Lig": "🇹🇷",
+  "Jupiler Pro League": "🇧🇪",
   "Champions League": "🏆",
   "Europa League": "🏆",
   "Conference League": "🏆",
+  "FA Cup": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+  "Copa del Rey": "🇪🇸",
+  "DFB Pokal": "🇩🇪",
+  "Coppa Italia": "🇮🇹",
+  "Coupe de France": "🇫🇷",
 };
 
 // Simple in-memory cache (persists across warm function invocations)
 let cache = { data: null, timestamp: 0 };
-const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours
+const CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours (conserve API requests on free tier)
 
 async function apiFetch(endpoint) {
   const res = await fetch(`${API_BASE}${endpoint}`, {
@@ -53,20 +70,15 @@ function getDateStr(offsetDays = 0) {
   return d.toISOString().split("T")[0];
 }
 
-// Fetch fixtures for today and tomorrow
+// Fetch fixtures for the next 7 days
 async function fetchFixtures() {
-  const today = getDateStr(0);
-  const tomorrow = getDateStr(1);
-  const dayAfter = getDateStr(2);
-
-  // Fetch today + next 2 days for more matches
-  const [f1, f2, f3] = await Promise.all([
-    apiFetch(`/fixtures?date=${today}`),
-    apiFetch(`/fixtures?date=${tomorrow}`),
-    apiFetch(`/fixtures?date=${dayAfter}`),
-  ]);
-
-  const all = [...f1, ...f2, ...f3];
+  // Fetch 7 days of fixtures
+  const datePromises = [];
+  for (let i = 0; i < 7; i++) {
+    datePromises.push(apiFetch(`/fixtures?date=${getDateStr(i)}`));
+  }
+  const results = await Promise.all(datePromises);
+  const all = results.flat();
 
   // Filter to our supported leagues + only scheduled/not started
   return all.filter(f => {
@@ -302,9 +314,9 @@ export default async (req) => {
   const headers = {
     "Access-Control-Allow-Origin": "*",
     "Content-Type": "application/json",
-    // Cache at Netlify CDN edge for 6 hours
-    "Cache-Control": "public, s-maxage=21600, max-age=3600",
-    "Netlify-CDN-Cache-Control": "public, s-maxage=21600",
+    // Cache at Netlify CDN edge for 12 hours
+    "Cache-Control": "public, s-maxage=43200, max-age=3600",
+    "Netlify-CDN-Cache-Control": "public, s-maxage=43200",
   };
 
   if (req.method === "OPTIONS") {
@@ -323,15 +335,20 @@ export default async (req) => {
   }
 
   try {
-    // 1. Fetch upcoming fixtures
+    // 1. Fetch upcoming fixtures across 7 days
     const rawFixtures = await fetchFixtures();
 
-    // Limit to avoid hitting API limits (max 15 fixtures with detailed data)
-    const selectedFixtures = rawFixtures.slice(0, 15);
+    // Sort by date (closest first) for enrichment priority
+    rawFixtures.sort((a, b) => new Date(a.fixture.date) - new Date(b.fixture.date));
 
-    // 2. Fetch predictions, injuries, and odds in parallel for each fixture
+    // 2. Enrich up to 20 fixtures with full data (predictions, injuries, odds)
+    // Remaining fixtures get basic data only (visible in picker but no AI analysis)
+    const enrichLimit = Math.min(20, rawFixtures.length);
+    const toEnrich = rawFixtures.slice(0, enrichLimit);
+    const basicOnly = rawFixtures.slice(enrichLimit);
+
     const enrichedFixtures = await Promise.all(
-      selectedFixtures.map(async (fixture) => {
+      toEnrich.map(async (fixture) => {
         const fixtureId = fixture.fixture.id;
         const [prediction, injuriesData, oddsData] = await Promise.all([
           fetchPrediction(fixtureId),
@@ -342,14 +359,19 @@ export default async (req) => {
       })
     );
 
+    // Basic fixtures (no predictions/odds — appear in picker but can't generate bets)
+    const basicFixtures = basicOnly.map(fixture => transformFixture(fixture, null, [], []));
+
+    const allFixtures = [...enrichedFixtures, ...basicFixtures];
+
     // Update cache
-    cache = { data: enrichedFixtures, timestamp: now };
+    cache = { data: allFixtures, timestamp: now };
 
     return new Response(JSON.stringify({
       success: true,
       cached: false,
       lastUpdated: new Date(now).toISOString(),
-      fixtures: enrichedFixtures,
+      fixtures: allFixtures,
     }), { headers });
 
   } catch (error) {
