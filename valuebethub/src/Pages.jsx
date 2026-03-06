@@ -401,6 +401,318 @@ export function AffiliateDisclosurePage() {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// CONTENT PAGES — SEO, engagement, and AdSense approval
+// ═══════════════════════════════════════════════════════════════════════
+
+export function HowItWorksPage() {
+  return (
+    <div className="page-content">
+      <h1>How It Works</h1>
+      <p>
+        ValueBetHub uses multi-factor statistical analysis to generate smart bet slips
+        tailored to your goals. Here is exactly what happens when you press "Generate Smart Slip."
+      </p>
+
+      <h2>Step 1 — You Set Your Parameters</h2>
+      <p>
+        Tell us what you want: your target winnings, your stake, how many selections,
+        and your risk tolerance. You can also filter by specific leagues, matches, and
+        bet types. Want only Premier League Over/Under bets? No problem.
+      </p>
+
+      <h2>Step 2 — We Fetch Live Match Data</h2>
+      <p>
+        Our system pulls real-time data from professional football data providers covering
+        19+ leagues and competitions. For each match, we collect current bookmaker odds,
+        recent team form, head-to-head records, injury reports, and league standings.
+      </p>
+
+      <h2>Step 3 — AI Analysis</h2>
+      <p>
+        This is where the intelligence happens. For every available market (match result,
+        over/under goals, BTTS, double chance, corners), our engine calculates a fair
+        probability by analysing real bookmaker odds — which represent the market's best
+        estimate — and then applying small, data-driven adjustments based on factors the
+        odds might not fully reflect.
+      </p>
+      <p>
+        These adjustments are capped at ±5% because we are honest: no model consistently
+        beats the market by more than that. When we find a positive edge — even a small one
+        — that is a potential value bet.
+      </p>
+
+      <h2>Step 4 — Context Intelligence</h2>
+      <p>
+        Beyond raw statistics, our AI generates contextual insights for each fixture. Is a
+        top team likely to rotate players before a Champions League match? Has the home side
+        been unbeatable at their ground this season? Is there a massive league position gap
+        suggesting a mismatch? These observations appear in the analysis breakdown for every
+        selection.
+      </p>
+
+      <h2>Step 5 — Smart Slip Building</h2>
+      <p>
+        The algorithm selects bets that best match your target return while prioritising
+        value. It ensures no two selections come from the same match, balances risk according
+        to your chosen mode, and generates an optimised accumulator (or single bet) with
+        realistic win probability.
+      </p>
+
+      <h2>Step 6 — Honest Assessment</h2>
+      <p>
+        Every slip comes with a transparent summary: combined odds, potential return, actual
+        win probability, and an AI Advisor that tells you if your target is realistic. If
+        your setup is too aggressive, we say so — and suggest adjustments to improve your
+        chances.
+      </p>
+
+      <h2>What We Do Not Do</h2>
+      <p>
+        We do not guarantee wins. We do not inflate probabilities to make slips look
+        attractive. We do not claim to be smarter than the entire betting market. What we
+        do is find small statistical edges, present them transparently, and let you make
+        informed decisions.
+      </p>
+    </div>
+  );
+}
+
+export function BankrollManagementPage() {
+  return (
+    <div className="page-content">
+      <h1>Bankroll Management Guide</h1>
+      <p>
+        The single most important skill in sports betting is not picking winners — it is
+        managing your money. Even the sharpest bettors lose more often than they win. What
+        separates profitable bettors from the rest is disciplined bankroll management.
+      </p>
+
+      <h2>What Is a Bankroll?</h2>
+      <p>
+        Your bankroll is the total amount of money you have set aside specifically for
+        betting. This should be money you can afford to lose entirely. Never bet with rent
+        money, savings, or borrowed funds. Once you define your bankroll, every decision
+        flows from that number.
+      </p>
+
+      <h2>The Unit System</h2>
+      <p>
+        Professional bettors think in "units" rather than euros or dollars. One unit
+        typically equals 1-2% of your total bankroll. If your bankroll is €1,000, one unit
+        is €10-20. This system prevents emotional decisions and keeps your stakes consistent.
+      </p>
+      <div className="info-box">
+        <strong>Example:</strong> €1,000 bankroll → 1 unit = €10 (1%)<br />
+        Standard single bet: 1 unit (€10)<br />
+        High-confidence bet: 2 units (€20)<br />
+        Accumulator: 0.5 units (€5)<br />
+        Maximum bet: 3 units (€30) — never more
+      </div>
+
+      <h2>Staking Strategies</h2>
+
+      <h3>Flat Staking (Recommended for Beginners)</h3>
+      <p>
+        Bet the same amount on every wager regardless of confidence. Simple, disciplined,
+        and protects against overconfidence. If you bet 1 unit per bet and have a 5% edge,
+        your bankroll grows steadily over time without wild swings.
+      </p>
+
+      <h3>Percentage Staking</h3>
+      <p>
+        Bet a fixed percentage of your current bankroll on each wager. As your bankroll
+        grows, your stakes grow. As it shrinks, stakes shrink too — providing natural
+        protection against losing streaks. Typically 1-3% per bet.
+      </p>
+
+      <h3>Kelly Criterion</h3>
+      <p>
+        A mathematical formula that calculates the optimal stake based on your edge and the
+        odds. The formula is: Stake = (Edge × Odds - 1) / (Odds - 1). Most professionals
+        use "quarter Kelly" or "half Kelly" to reduce variance — the full Kelly amount is
+        too aggressive for most people.
+      </p>
+
+      <h2>Rules That Protect Your Bankroll</h2>
+      <p>
+        <strong>Never bet more than 5% on a single wager.</strong> Even if you are extremely
+        confident, a 5% cap ensures one bad result does not devastate your bankroll.
+      </p>
+      <p>
+        <strong>Never chase losses.</strong> After a losing streak, the instinct is to increase
+        stakes to "win it back." This is the fastest way to go broke. Stick to your unit size
+        regardless of recent results.
+      </p>
+      <p>
+        <strong>Reduce stakes during cold streaks.</strong> If your bankroll drops 20% or more,
+        consider halving your unit size until you recover. This is the opposite of chasing —
+        it protects your remaining capital.
+      </p>
+      <p>
+        <strong>Keep records.</strong> Track every bet: date, match, market, odds, stake, and
+        result. After 100+ bets, patterns emerge — you might discover you are profitable on
+        Over/Under markets but losing on Match Result. Data drives better decisions.
+      </p>
+      <p>
+        <strong>Set a stop-loss.</strong> Decide in advance: "If I lose 3 units today, I stop."
+        This prevents tilt-driven decisions on bad days.
+      </p>
+
+      <h2>Bankroll Management for Accumulators</h2>
+      <p>
+        Accumulators are inherently high-risk — a 5-leg acca with individual legs at 60%
+        probability has roughly a 7.8% chance of hitting. This means 92% of the time, you
+        lose your stake. For this reason, accumulators should represent a small fraction
+        of your betting activity.
+      </p>
+      <p>
+        A sensible approach: allocate 10-20% of your weekly betting budget to accumulators,
+        and treat them as entertainment rather than a primary strategy. The bulk of your
+        edge should come from singles and doubles where probabilities compound less
+        aggressively against you.
+      </p>
+
+      <h2>The Long-Term Mindset</h2>
+      <p>
+        Profitable betting is a marathon, not a sprint. Even with a genuine 3% edge, you
+        need hundreds of bets for the mathematics to play out. Short-term results are
+        dominated by variance. A losing week does not mean your strategy is broken, and
+        a winning week does not make you a genius. Trust the process, maintain discipline,
+        and let the numbers work over time.
+      </p>
+    </div>
+  );
+}
+
+export function BettingStrategyPage() {
+  return (
+    <div className="page-content">
+      <h1>Betting Strategy Guide</h1>
+      <p>
+        Whether you are new to sports betting or looking to sharpen your approach, this
+        guide covers the fundamental strategies that separate informed bettors from the crowd.
+      </p>
+
+      <h2>Understanding Value Betting</h2>
+      <p>
+        A value bet occurs when the probability of an outcome is higher than what the
+        bookmaker's odds imply. If you believe a team has a 60% chance of winning but the
+        bookmaker's odds imply only 50%, that is a value bet — the odds are in your favour
+        over the long run.
+      </p>
+      <p>
+        Finding value is the only way to be profitable long-term. Betting on favourites
+        does not automatically mean value, and betting on underdogs does not automatically
+        mean poor value. What matters is the relationship between true probability and
+        the odds offered.
+      </p>
+
+      <h2>Pre-Match Research Checklist</h2>
+      <p>
+        Before placing any bet, consider these factors. ValueBetHub's AI analyses many of
+        these automatically, but understanding them makes you a sharper bettor.
+      </p>
+      <p>
+        <strong>Recent form:</strong> How have both teams performed in their last 5-10 matches?
+        Look at results but also performances — a team might be winning ugly or losing
+        despite dominating.
+      </p>
+      <p>
+        <strong>Head-to-head:</strong> Some matchups produce consistent patterns. A mid-table
+        team might historically perform well against a top side, or vice versa.
+      </p>
+      <p>
+        <strong>Injuries and suspensions:</strong> A missing key player can transform a match.
+        A striker on a hot streak being injured, or a first-choice goalkeeper missing, shifts
+        probabilities significantly.
+      </p>
+      <p>
+        <strong>Motivation and context:</strong> A team fighting relegation plays with different
+        intensity than one safely mid-table. A side with a Champions League semifinal in four
+        days might rotate their squad in the league.
+      </p>
+      <p>
+        <strong>Home and away records:</strong> Some teams are dramatically different at home
+        versus away. A side that is dominant at home but poor on the road represents different
+        value depending on the venue.
+      </p>
+
+      <h2>Popular Market Strategies</h2>
+
+      <h3>1X2 (Match Result)</h3>
+      <p>
+        The most straightforward market. Value often hides in draws — they are the outcome
+        bettors neglect most, yet occur in roughly 25% of football matches. When two
+        closely matched teams play, draw odds can offer significant value.
+      </p>
+
+      <h3>Over/Under Goals</h3>
+      <p>
+        Goals markets are driven by team scoring and conceding patterns. A match between two
+        attacking teams with leaky defences favours overs. Two defensive, low-scoring sides
+        favour unders. The key statistic is expected goals (xG) for both teams combined.
+      </p>
+
+      <h3>Both Teams to Score (BTTS)</h3>
+      <p>
+        BTTS Yes is favoured when both teams score regularly and neither keeps many clean
+        sheets. BTTS No works when one team has a strong defence or the opponent struggles
+        to score. Home fortress teams often present BTTS No value.
+      </p>
+
+      <h3>Double Chance</h3>
+      <p>
+        Lower odds but higher probability. Double chance (e.g. Home or Draw) is ideal for
+        safer accumulators. The reduced odds mean you need more legs to reach a meaningful
+        return, but each leg is far more likely to hit.
+      </p>
+
+      <h2>Accumulator Strategy</h2>
+      <p>
+        Accumulators are exciting but mathematically challenging. Each added leg multiplies
+        both the potential return and the probability of failure. A disciplined approach
+        to accumulators involves three principles.
+      </p>
+      <p>
+        <strong>Fewer legs with genuine value:</strong> A 3-leg accumulator with three strong
+        value selections beats a 7-leg accumulator where you are guessing on four of them.
+        Quality over quantity.
+      </p>
+      <p>
+        <strong>Mix your markets:</strong> Instead of five match results, combine a home win,
+        an over 2.5, a BTTS, and a double chance. Different markets carry different types
+        of risk, and diversifying reduces correlation.
+      </p>
+      <p>
+        <strong>Use the right stake:</strong> Accumulators should be small stakes relative to
+        your bankroll. Treat them as lottery-style bets with positive expected value, not as
+        your main strategy.
+      </p>
+
+      <h2>Common Mistakes to Avoid</h2>
+      <p>
+        <strong>Betting with your heart:</strong> Supporting your team emotionally while betting
+        on them objectively is nearly impossible. If you cannot be neutral, skip the match.
+      </p>
+      <p>
+        <strong>Overreacting to one result:</strong> A team losing one match does not make them
+        bad. Sample sizes matter — five matches of data are not enough to draw conclusions.
+      </p>
+      <p>
+        <strong>Ignoring closing odds:</strong> Odds move as money comes in. If odds drift
+        significantly against your selection before kickoff, it often means sharp money
+        disagrees with your position.
+      </p>
+      <p>
+        <strong>Treating accumulators as primary strategy:</strong> Accumulators should
+        complement singles and doubles, not replace them. The maths works against you
+        with every leg added.
+      </p>
+    </div>
+  );
+}
+
 // Page styles
 export const PAGE_CSS = `
   .page-content {
@@ -439,6 +751,26 @@ export const PAGE_CSS = `
   }
   .page-content em {
     color: var(--text-muted);
+  }
+  .page-content h3 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-top: 20px;
+    margin-bottom: 8px;
+    color: var(--gold-400);
+  }
+  .info-box {
+    padding: 14px 16px;
+    border-radius: 10px;
+    background: rgba(212,175,55,0.06);
+    border: 1px solid rgba(212,175,55,0.12);
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    margin: 12px 0 16px;
+  }
+  .info-box strong {
+    color: var(--gold-400);
   }
 
   /* Footer */
