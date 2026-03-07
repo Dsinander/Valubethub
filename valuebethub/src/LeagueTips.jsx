@@ -21,10 +21,11 @@ const LEAGUE_META = {
   "Conference League": { slug: "conference-league", emoji: "🏆", color: "#19381f", desc: "UEFA's newest European competition — opportunity for underdogs." },
 };
 
-function getConfidence(edge) {
-  if (edge > 3) return { label: "High Confidence", color: "var(--green-400)", bg: "rgba(34,197,94,0.12)", border: "rgba(34,197,94,0.25)" };
-  if (edge > 1) return { label: "Medium Confidence", color: "var(--gold-400)", bg: "rgba(212,175,55,0.12)", border: "rgba(212,175,55,0.25)" };
-  if (edge > 0) return { label: "Slight Edge", color: "var(--blue-500)", bg: "rgba(59,130,246,0.12)", border: "rgba(59,130,246,0.25)" };
+function getConfidence(edge, prob) {
+  if (edge > 2 && prob >= 55) return { label: "Strong Pick", color: "var(--green-400)", bg: "rgba(34,197,94,0.12)", border: "rgba(34,197,94,0.25)" };
+  if (edge > 0 && prob >= 45) return { label: "Value Bet", color: "var(--gold-400)", bg: "rgba(212,175,55,0.12)", border: "rgba(212,175,55,0.25)" };
+  if (prob >= 55) return { label: "High Probability", color: "var(--blue-500)", bg: "rgba(59,130,246,0.12)", border: "rgba(59,130,246,0.25)" };
+  if (edge > 0) return { label: "Slight Edge", color: "var(--gold-400)", bg: "rgba(212,175,55,0.10)", border: "rgba(212,175,55,0.20)" };
   return { label: "AI Pick", color: "var(--text-muted)", bg: "rgba(148,163,184,0.1)", border: "rgba(148,163,184,0.2)" };
 }
 
@@ -43,13 +44,32 @@ export default function LeagueTipsPage({ onMatchPreview }) {
         // Generate tips per league
         const allMarkets = new Set(Object.values(MARKET_CATEGORIES).flatMap(c => c.markets));
         const opps = generateOpportunities(result.fixtures, allMarkets);
-        // Sort all opportunities by edge — show best per league
-        const sortedOpps = opps
-          .filter(o => o.bookmakerOdds >= 1.15 && o.bookmakerOdds <= 6.0 && parseFloat(o.edge) > -2)
-          .sort((a, b) => parseFloat(b.edge) - parseFloat(a.edge));
+        // Smart filtering: tips must be LIKELY, not just have edge
+        // No one wants "Cagliari to beat Como" at 35% probability
+        const scored = opps
+          .filter(o => {
+            const prob = o.aiProbability;
+            const edge = parseFloat(o.edge);
+            const odds = o.bookmakerOdds;
+            if (!odds || odds < 1.10) return false;
+            if (o.market.includes("Home Win") || o.market.includes("Away Win")) return prob >= 45 && edge > -1;
+            if (o.market.includes("Draw")) return prob >= 28 && edge > -1;
+            if (o.market.includes("Double Chance") || o.market.includes("1X") || o.market.includes("X2") || o.market.includes("12")) return prob >= 55 && edge > -1;
+            if (o.market.includes("Over") || o.market.includes("Under")) return prob >= 40 && edge > -1;
+            if (o.market.includes("BTTS")) return prob >= 40 && edge > -1;
+            if (o.market.includes("Corner")) return prob >= 40 && edge > -1;
+            return prob >= 40 && edge > -1;
+          })
+          .map(o => {
+            const prob = o.aiProbability;
+            const edge = parseFloat(o.edge);
+            const score = (prob * 0.6) + (edge * 8) + (o.isValue ? 5 : 0);
+            return { ...o, _tipScore: score };
+          })
+          .sort((a, b) => b._tipScore - a._tipScore);
 
         const byLeague = {};
-        for (const bet of sortedOpps) {
+        for (const bet of scored) {
           if (!byLeague[bet.league]) byLeague[bet.league] = [];
           // Max 1 bet per match per league
           const matchKey = `${bet.home}-${bet.away}`;
@@ -138,7 +158,7 @@ export default function LeagueTipsPage({ onMatchPreview }) {
 
               {currentTips.map((tip, i) => {
                 const edge = parseFloat(tip.edge);
-                const conf = getConfidence(edge);
+                const conf = getConfidence(edge, tip.aiProbability);
                 return (
                   <div key={tip.id} className="lt-tip" style={{ animationDelay: `${i * 0.06}s` }}>
                     <div className="lt-tip-top">
