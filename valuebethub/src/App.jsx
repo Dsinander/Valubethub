@@ -2,6 +2,8 @@ import { useState, useCallback, useEffect } from "react";
 import { fetchMatchData, generateOpportunities, buildSlip, MARKET_CATEGORIES } from "./api.js";
 import { AboutPage, PrivacyPage, TermsPage, ResponsibleGamblingPage, AffiliateDisclosurePage, HowItWorksPage, BankrollManagementPage, BettingStrategyPage, PAGE_CSS } from "./Pages.jsx";
 import TipsPage from "./TipsPage.jsx";
+import LeagueTipsPage from "./LeagueTips.jsx";
+import MatchPreviewPage from "./MatchPreview.jsx";
 import { AuthModal, UserMenu, AUTH_CSS } from "./Auth.jsx";
 import { DashboardPage, UpgradePage, SettingsPage } from "./Dashboard.jsx";
 import { supabase, getProfile, signOut, saveSlip, canSaveSlip } from "./supabase.js";
@@ -119,9 +121,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--navy-950);color:var(--tex
 @media(max-width:640px){.inner{padding:12px 12px 40px}.card{padding:18px 14px}.summary-grid{grid-template-columns:1fr 1fr}.sel-header{flex-direction:column}}
 ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--navy-900)}::-webkit-scrollbar-thumb{background:var(--navy-600);border-radius:3px}
 .nav-tabs{display:flex;justify-content:center;gap:4px;margin-bottom:20px;flex-wrap:wrap}
-.nav-tab{padding:10px 20px;border-radius:10px;border:1px solid var(--navy-600);background:var(--navy-800);color:var(--text-secondary);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:6px}
+.nav-tab{padding:10px 16px;border-radius:10px;border:1px solid var(--navy-600);background:var(--navy-800);color:var(--text-secondary);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:5px}
 .nav-tab:hover{border-color:var(--navy-400);color:var(--text-primary)}
 .nav-tab.active{border-color:var(--gold-500);background:rgba(212,175,55,0.1);color:var(--gold-400)}
+@media(max-width:640px){.nav-tab{padding:8px 12px;font-size:12px}}
 `;
 
 // ─── ANALYSIS BREAKDOWN ──────────────────────────────────────────────
@@ -130,67 +133,12 @@ function AnalysisBreakdown({ sel }) {
   if (!a) return null;
   return (
     <div className="analysis-box">
-      {(a.homeRecentForm?.length > 0 || a.awayRecentForm?.length > 0) && (
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Recent Form</div>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-            <div>
-              <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>{sel.home}</div>
-              <div className="form-pills">{(a.homeRecentForm || []).map((r, i) => <div key={i} className={`form-pill pill-${r}`}>{r}</div>)}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>{sel.away}</div>
-              <div className="form-pills">{(a.awayRecentForm || []).map((r, i) => <div key={i} className={`form-pill pill-${r}`}>{r}</div>)}</div>
-            </div>
-          </div>
-        </div>
-      )}
-      {a.h2hData?.last5?.length > 0 && (
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Head to Head</div>
-          <div style={{ display: "flex", gap: 16, fontSize: 13, marginBottom: 4 }}>
-            <span style={{ color: "var(--green-400)" }}>{sel.home}: {a.h2hData.homeWins}W</span>
-            <span style={{ color: "var(--text-muted)" }}>Draws: {a.h2hData.draws}</span>
-            <span style={{ color: "var(--blue-500)" }}>{sel.away}: {a.h2hData.awayWins}W</span>
-          </div>
-          {a.h2hData.last5.slice(0, 3).map((m, i) => <div key={i} className="h2h-row">{m.home} {m.score} {m.away} ({m.date})</div>)}
-        </div>
-      )}
-      <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Goals Average</div>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-          <div><span style={{ color: "var(--text-secondary)" }}>{sel.home}: </span><span style={{ color: "var(--green-400)", fontFamily: "'JetBrains Mono',monospace" }}>{a.homeXGFor} for</span> / <span style={{ color: "var(--red-400)", fontFamily: "'JetBrains Mono',monospace" }}>{a.homeXGAgainst} against</span></div>
-          <div><span style={{ color: "var(--text-secondary)" }}>{sel.away}: </span><span style={{ color: "var(--green-400)", fontFamily: "'JetBrains Mono',monospace" }}>{a.awayXGFor} for</span> / <span style={{ color: "var(--red-400)", fontFamily: "'JetBrains Mono',monospace" }}>{a.awayXGAgainst} against</span></div>
-        </div>
-      </div>
-      {(a.homeInjuries?.length > 0 || a.awayInjuries?.length > 0) && (
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Injuries</div>
-          {a.homeInjuries?.map((inj, i) => <div key={`hi${i}`} className="inj-item">{inj.status === 'out' ? '🔴' : '🟡'} {sel.home} — {inj.player} — {inj.status} ({inj.returnDate})</div>)}
-          {a.awayInjuries?.map((inj, i) => <div key={`ai${i}`} className="inj-item">{inj.status === 'out' ? '🔴' : '🟡'} {sel.away} — {inj.player} — {inj.status} ({inj.returnDate})</div>)}
-        </div>
-      )}
-      {a.contextInsights?.length > 0 && (
-        <div style={{ marginTop: 12 }}>
-          <div style={{ fontSize: 11, color: "var(--gold-500)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 600 }}>🧠 AI Reasoning</div>
-          {a.contextInsights.map((insight, i) => {
-            const bgColor = insight.impact?.includes("positive") ? "rgba(34,197,94,0.06)" : insight.impact?.includes("negative") ? "rgba(239,68,68,0.06)" : insight.impact?.includes("high_scoring") ? "rgba(245,158,11,0.06)" : insight.impact?.includes("low_scoring") ? "rgba(59,130,246,0.06)" : "rgba(148,163,184,0.06)";
-            const borderColor = insight.impact?.includes("positive") ? "rgba(34,197,94,0.12)" : insight.impact?.includes("negative") ? "rgba(239,68,68,0.12)" : insight.impact?.includes("high_scoring") ? "rgba(245,158,11,0.12)" : insight.impact?.includes("low_scoring") ? "rgba(59,130,246,0.12)" : "rgba(148,163,184,0.12)";
-            return (
-              <div key={i} style={{ padding: "8px 10px", borderRadius: 8, background: bgColor, border: `1px solid ${borderColor}`, marginBottom: 6 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)", marginBottom: 2 }}>{insight.icon} {insight.title}</div>
-                <div style={{ fontSize: 12, lineHeight: 1.5, color: "var(--text-secondary)" }}>{insight.detail}</div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-      {a.prediction?.advice && (
-        <div style={{ marginTop: 10, fontSize: 12, padding: "8px 10px", borderRadius: 6, background: "rgba(212,175,55,0.06)", border: "1px solid rgba(212,175,55,0.1)" }}>
-          <span style={{ color: "var(--gold-400)", fontWeight: 600 }}>Model Summary:</span>{" "}
-          <span style={{ color: "var(--text-secondary)" }}>{a.prediction.advice}</span>
-        </div>
-      )}
+      {(a.homeRecentForm?.length > 0 || a.awayRecentForm?.length > 0) && (<div style={{ marginBottom: 12 }}><div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Recent Form</div><div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}><div><div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>{sel.home}</div><div className="form-pills">{(a.homeRecentForm || []).map((r, i) => <div key={i} className={`form-pill pill-${r}`}>{r}</div>)}</div></div><div><div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>{sel.away}</div><div className="form-pills">{(a.awayRecentForm || []).map((r, i) => <div key={i} className={`form-pill pill-${r}`}>{r}</div>)}</div></div></div></div>)}
+      {a.h2hData?.last5?.length > 0 && (<div style={{ marginBottom: 12 }}><div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Head to Head</div><div style={{ display: "flex", gap: 16, fontSize: 13, marginBottom: 4 }}><span style={{ color: "var(--green-400)" }}>{sel.home}: {a.h2hData.homeWins}W</span><span style={{ color: "var(--text-muted)" }}>Draws: {a.h2hData.draws}</span><span style={{ color: "var(--blue-500)" }}>{sel.away}: {a.h2hData.awayWins}W</span></div>{a.h2hData.last5.slice(0, 3).map((m, i) => <div key={i} className="h2h-row">{m.home} {m.score} {m.away} ({m.date})</div>)}</div>)}
+      <div style={{ marginBottom: 12 }}><div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Goals Average</div><div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}><div><span style={{ color: "var(--text-secondary)" }}>{sel.home}: </span><span style={{ color: "var(--green-400)", fontFamily: "'JetBrains Mono',monospace" }}>{a.homeXGFor} for</span> / <span style={{ color: "var(--red-400)", fontFamily: "'JetBrains Mono',monospace" }}>{a.homeXGAgainst} against</span></div><div><span style={{ color: "var(--text-secondary)" }}>{sel.away}: </span><span style={{ color: "var(--green-400)", fontFamily: "'JetBrains Mono',monospace" }}>{a.awayXGFor} for</span> / <span style={{ color: "var(--red-400)", fontFamily: "'JetBrains Mono',monospace" }}>{a.awayXGAgainst} against</span></div></div></div>
+      {(a.homeInjuries?.length > 0 || a.awayInjuries?.length > 0) && (<div style={{ marginBottom: 12 }}><div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Injuries</div>{a.homeInjuries?.map((inj, i) => <div key={`hi${i}`} className="inj-item">{inj.status === 'out' ? '🔴' : '🟡'} {sel.home} — {inj.player} — {inj.status} ({inj.returnDate})</div>)}{a.awayInjuries?.map((inj, i) => <div key={`ai${i}`} className="inj-item">{inj.status === 'out' ? '🔴' : '🟡'} {sel.away} — {inj.player} — {inj.status} ({inj.returnDate})</div>)}</div>)}
+      {a.contextInsights?.length > 0 && (<div style={{ marginTop: 12 }}><div style={{ fontSize: 11, color: "var(--gold-500)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 600 }}>🧠 AI Reasoning</div>{a.contextInsights.map((insight, i) => { const bg = insight.impact?.includes("positive") ? "rgba(34,197,94,0.06)" : insight.impact?.includes("negative") ? "rgba(239,68,68,0.06)" : insight.impact?.includes("high_scoring") ? "rgba(245,158,11,0.06)" : insight.impact?.includes("low_scoring") ? "rgba(59,130,246,0.06)" : "rgba(148,163,184,0.06)"; const bc = insight.impact?.includes("positive") ? "rgba(34,197,94,0.12)" : insight.impact?.includes("negative") ? "rgba(239,68,68,0.12)" : insight.impact?.includes("high_scoring") ? "rgba(245,158,11,0.12)" : insight.impact?.includes("low_scoring") ? "rgba(59,130,246,0.12)" : "rgba(148,163,184,0.12)"; return <div key={i} style={{ padding: "8px 10px", borderRadius: 8, background: bg, border: `1px solid ${bc}`, marginBottom: 6 }}><div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)", marginBottom: 2 }}>{insight.icon} {insight.title}</div><div style={{ fontSize: 12, lineHeight: 1.5, color: "var(--text-secondary)" }}>{insight.detail}</div></div>; })}</div>)}
+      {a.prediction?.advice && (<div style={{ marginTop: 10, fontSize: 12, padding: "8px 10px", borderRadius: 6, background: "rgba(212,175,55,0.06)", border: "1px solid rgba(212,175,55,0.1)" }}><span style={{ color: "var(--gold-400)", fontWeight: 600 }}>Model Summary:</span> <span style={{ color: "var(--text-secondary)" }}>{a.prediction.advice}</span></div>)}
     </div>
   );
 }
@@ -199,13 +147,10 @@ function AnalysisBreakdown({ sel }) {
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════════════
 export default function App() {
-  // Data state
   const [fixtures, setFixtures] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [dataError, setDataError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
-
-  // User inputs
   const [targetWinnings, setTargetWinnings] = useState("500");
   const [stake, setStake] = useState("100");
   const [riskLevel, setRiskLevel] = useState("balanced");
@@ -214,14 +159,13 @@ export default function App() {
   const [expandLeagues, setExpandLeagues] = useState({});
   const [selectedMarketTypes, setSelectedMarketTypes] = useState(() => Object.keys(MARKET_CATEGORIES));
   const [timeRange, setTimeRange] = useState("all");
-
-  // App state
   const [phase, setPhase] = useState("input");
   const [currentPage, setCurrentPage] = useState(null);
   const [loadProgress, setLoadProgress] = useState(0);
   const [loadStage, setLoadStage] = useState(0);
   const [slip, setSlip] = useState(null);
   const [expandedCards, setExpandedCards] = useState({});
+  const [matchPreviewTarget, setMatchPreviewTarget] = useState(null);
 
   // Auth state
   const [user, setUser] = useState(null);
@@ -229,149 +173,24 @@ export default function App() {
   const [showAuth, setShowAuth] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
 
-  // Fetch real data on mount
-  useEffect(() => {
-    async function loadData() {
-      setDataLoading(true);
-      const result = await fetchMatchData();
-      if (result.success) {
-        setFixtures(result.fixtures);
-        setSelectedFixtures(result.fixtures.map((_, i) => i));
-        setLastUpdated(result.lastUpdated);
-      } else {
-        setDataError(result.error || "Failed to load match data");
-      }
-      setDataLoading(false);
-    }
-    loadData();
-  }, []);
+  useEffect(() => { async function loadData() { setDataLoading(true); const result = await fetchMatchData(); if (result.success) { setFixtures(result.fixtures); setSelectedFixtures(result.fixtures.map((_, i) => i)); setLastUpdated(result.lastUpdated); } else { setDataError(result.error || "Failed to load match data"); } setDataLoading(false); } loadData(); }, []);
 
-  // Auth listener
-  useEffect(() => {
-    if (!supabase) return;
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user);
-        getProfile(session.user.id).then(p => setProfile(p));
-      }
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (session?.user) {
-          setUser(session.user);
-          const p = await getProfile(session.user.id);
-          setProfile(p);
-        } else {
-          setUser(null);
-          setProfile(null);
-        }
-      }
-    );
-    return () => subscription.unsubscribe();
-  }, []);
+  useEffect(() => { if (!supabase) return; supabase.auth.getSession().then(({ data: { session } }) => { if (session?.user) { setUser(session.user); getProfile(session.user.id).then(p => setProfile(p)); } }); const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => { if (session?.user) { setUser(session.user); const p = await getProfile(session.user.id); setProfile(p); } else { setUser(null); setProfile(null); } }); return () => subscription.unsubscribe(); }, []);
 
-  // Time range filtering
-  const filterByTimeRange = (fixtureList) => {
-    if (timeRange === "all") return fixtureList;
-    const now = new Date();
-    const todayStr = now.toISOString().split("T")[0];
-    const tomorrowStr = new Date(now.getTime() + 86400000).toISOString().split("T")[0];
-    const dayOfWeek = now.getDay();
-    return fixtureList.filter(f => {
-      const fDate = f.date;
-      if (timeRange === "today") return fDate === todayStr;
-      if (timeRange === "tomorrow") return fDate === tomorrowStr;
-      if (timeRange === "weekend") {
-        const daysUntilSat = (6 - dayOfWeek + 7) % 7 || 7;
-        const sat = new Date(now.getTime() + daysUntilSat * 86400000);
-        if (dayOfWeek === 0 || dayOfWeek === 6) {
-          const satStr = dayOfWeek === 6 ? todayStr : new Date(now.getTime() - 86400000).toISOString().split("T")[0];
-          const sunStr = dayOfWeek === 0 ? todayStr : tomorrowStr;
-          return fDate === satStr || fDate === sunStr;
-        }
-        const satStr = sat.toISOString().split("T")[0];
-        const sun = new Date(sat.getTime() + 86400000);
-        const sunStr = sun.toISOString().split("T")[0];
-        return fDate === satStr || fDate === sunStr;
-      }
-      return true;
-    });
-  };
-
+  const filterByTimeRange = (fixtureList) => { if (timeRange === "all") return fixtureList; const now = new Date(); const todayStr = now.toISOString().split("T")[0]; const tomorrowStr = new Date(now.getTime() + 86400000).toISOString().split("T")[0]; const dayOfWeek = now.getDay(); return fixtureList.filter(f => { const fDate = f.date; if (timeRange === "today") return fDate === todayStr; if (timeRange === "tomorrow") return fDate === tomorrowStr; if (timeRange === "weekend") { const daysUntilSat = (6 - dayOfWeek + 7) % 7 || 7; const sat = new Date(now.getTime() + daysUntilSat * 86400000); if (dayOfWeek === 0 || dayOfWeek === 6) { const satStr = dayOfWeek === 6 ? todayStr : new Date(now.getTime() - 86400000).toISOString().split("T")[0]; const sunStr = dayOfWeek === 0 ? todayStr : tomorrowStr; return fDate === satStr || fDate === sunStr; } return fDate === sat.toISOString().split("T")[0] || fDate === new Date(sat.getTime() + 86400000).toISOString().split("T")[0]; } return true; }); };
   const visibleFixtures = filterByTimeRange(fixtures);
-
-  useEffect(() => {
-    const indices = [];
-    visibleFixtures.forEach(vf => {
-      const idx = fixtures.findIndex(f => f.id === vf.id);
-      if (idx >= 0) indices.push(idx);
-    });
-    setSelectedFixtures(indices);
-  }, [timeRange, fixtures.length]);
+  useEffect(() => { const indices = []; visibleFixtures.forEach(vf => { const idx = fixtures.findIndex(f => f.id === vf.id); if (idx >= 0) indices.push(idx); }); setSelectedFixtures(indices); }, [timeRange, fixtures.length]);
 
   const leagues = [...new Set(visibleFixtures.map(f => f.league))];
-  const fixturesByLeague = {};
-  leagues.forEach(l => {
-    fixturesByLeague[l] = visibleFixtures.map((f, i) => {
-      const origIdx = fixtures.findIndex(of => of.id === f.id);
-      return { ...f, _idx: origIdx };
-    }).filter(f => f.league === l);
-  });
-
-  const toggleLeague = (league) => {
-    const indices = fixturesByLeague[league].map(f => f._idx);
-    const allSelected = indices.every(i => selectedFixtures.includes(i));
-    if (allSelected) {
-      const remaining = selectedFixtures.filter(i => !indices.includes(i));
-      if (remaining.length >= 1) setSelectedFixtures(remaining);
-    } else {
-      setSelectedFixtures(prev => [...new Set([...prev, ...indices])]);
-    }
-  };
-  const toggleFixture = (idx) => {
-    setSelectedFixtures(prev => prev.includes(idx) ? (prev.length <= 1 ? prev : prev.filter(i => i !== idx)) : [...prev, idx]);
-  };
-  const toggleMarketType = (key) => {
-    setSelectedMarketTypes(prev => prev.includes(key) ? (prev.length <= 1 ? prev : prev.filter(k => k !== key)) : [...prev, key]);
-  };
+  const fixturesByLeague = {}; leagues.forEach(l => { fixturesByLeague[l] = visibleFixtures.map((f) => { const origIdx = fixtures.findIndex(of => of.id === f.id); return { ...f, _idx: origIdx }; }).filter(f => f.league === l); });
+  const toggleLeague = (league) => { const indices = fixturesByLeague[league].map(f => f._idx); const allSelected = indices.every(i => selectedFixtures.includes(i)); if (allSelected) { const remaining = selectedFixtures.filter(i => !indices.includes(i)); if (remaining.length >= 1) setSelectedFixtures(remaining); } else { setSelectedFixtures(prev => [...new Set([...prev, ...indices])]); } };
+  const toggleFixture = (idx) => { setSelectedFixtures(prev => prev.includes(idx) ? (prev.length <= 1 ? prev : prev.filter(i => i !== idx)) : [...prev, idx]); };
+  const toggleMarketType = (key) => { setSelectedMarketTypes(prev => prev.includes(key) ? (prev.length <= 1 ? prev : prev.filter(k => k !== key)) : [...prev, key]); };
 
   const loadStages = ["Fetching match data...", "Analyzing form & H2H...", "Comparing odds...", "Identifying value...", "Building your slip..."];
+  const handleGenerate = useCallback(() => { setPhase("loading"); setLoadProgress(0); setLoadStage(0); setExpandedCards({}); setSaveStatus(null); const n = parseInt(numSelections); const targetOdds = (parseFloat(targetWinnings) || 500) / (parseFloat(stake) || 100); const filteredFixtures = fixtures.filter((_, i) => selectedFixtures.includes(i)); const allowedMarkets = new Set(selectedMarketTypes.flatMap(key => MARKET_CATEGORIES[key]?.markets || [])); let step = 0; const interval = setInterval(() => { step++; setLoadProgress(Math.min(100, step * (100 / 20))); setLoadStage(Math.min(Math.floor(step / 4), loadStages.length - 1)); if (step >= 20) { clearInterval(interval); const opps = generateOpportunities(filteredFixtures, allowedMarkets); const result = buildSlip(opps, n, riskLevel, targetOdds, targetWinnings, stake); setSlip(result); setPhase("results"); } }, 100); }, [numSelections, riskLevel, targetWinnings, stake, selectedFixtures, selectedMarketTypes, fixtures]);
 
-  const handleGenerate = useCallback(() => {
-    setPhase("loading");
-    setLoadProgress(0);
-    setLoadStage(0);
-    setExpandedCards({});
-    setSaveStatus(null);
-    const n = parseInt(numSelections);
-    const targetOdds = (parseFloat(targetWinnings) || 500) / (parseFloat(stake) || 100);
-    const filteredFixtures = fixtures.filter((_, i) => selectedFixtures.includes(i));
-    const allowedMarkets = new Set(selectedMarketTypes.flatMap(key => MARKET_CATEGORIES[key]?.markets || []));
-    let step = 0;
-    const interval = setInterval(() => {
-      step++;
-      setLoadProgress(Math.min(100, step * (100 / 20)));
-      setLoadStage(Math.min(Math.floor(step / 4), loadStages.length - 1));
-      if (step >= 20) {
-        clearInterval(interval);
-        const opps = generateOpportunities(filteredFixtures, allowedMarkets);
-        const result = buildSlip(opps, n, riskLevel, targetOdds, targetWinnings, stake);
-        setSlip(result);
-        setPhase("results");
-      }
-    }, 100);
-  }, [numSelections, riskLevel, targetWinnings, stake, selectedFixtures, selectedMarketTypes, fixtures]);
-
-  // Save slip handler
-  const handleSaveSlip = async () => {
-    if (!user || !slip) return;
-    setSaveStatus("saving");
-    const allowed = await canSaveSlip(user.id, profile?.tier);
-    if (!allowed) { setSaveStatus("limit"); return; }
-    const { error } = await saveSlip(user.id, slip, { stake, targetWinnings, riskLevel });
-    setSaveStatus(error ? "error" : "saved");
-    setTimeout(() => setSaveStatus(null), 3000);
-  };
+  const handleSaveSlip = async () => { if (!user || !slip) return; setSaveStatus("saving"); const allowed = await canSaveSlip(user.id, profile?.tier); if (!allowed) { setSaveStatus("limit"); return; } const { error } = await saveSlip(user.id, slip, { stake, targetWinnings, riskLevel }); setSaveStatus(error ? "error" : "saved"); setTimeout(() => setSaveStatus(null), 3000); };
 
   const stakeNum = parseFloat(stake) || 0;
   const potentialReturn = slip ? +(stakeNum * slip.combinedOdds).toFixed(2) : 0;
@@ -382,26 +201,17 @@ export default function App() {
   const evClass = slip ? (slip.avgEdge > 3 ? "ev-strong" : slip.avgEdge > 1.5 ? "ev-good" : slip.avgEdge > 0 ? "ev-marginal" : "ev-negative") : "";
 
   const goTo = (page) => { setCurrentPage(page); window.scrollTo(0, 0); };
+  const goToMatchPreview = (tip) => { setMatchPreviewTarget(tip); goTo("previews"); };
 
   return (
     <>
       <style>{CSS}{PAGE_CSS}{AUTH_CSS}</style>
       <div className="app">
         <div className="inner">
-          {/* ── HEADER WITH AUTH ──────── */}
+          {/* ── HEADER ────────────────── */}
           <div className="header">
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
-              {user && profile ? (
-                <UserMenu
-                  profile={profile}
-                  onNavigate={goTo}
-                  onSignOut={async () => { await signOut(); setUser(null); setProfile(null); goTo(null); }}
-                />
-              ) : (
-                <button onClick={() => setShowAuth(true)} style={{ padding: "7px 16px", borderRadius: 10, border: "1px solid var(--gold-500)", background: "rgba(212,175,55,0.1)", color: "var(--gold-400)", fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }}>
-                  Sign In
-                </button>
-              )}
+              {user && profile ? (<UserMenu profile={profile} onNavigate={goTo} onSignOut={async () => { await signOut(); setUser(null); setProfile(null); goTo(null); }} />) : (<button onClick={() => setShowAuth(true)} style={{ padding: "7px 16px", borderRadius: 10, border: "1px solid var(--gold-500)", background: "rgba(212,175,55,0.1)", color: "var(--gold-400)", fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Sign In</button>)}
             </div>
             <div className="brand" style={{ cursor: "pointer" }} onClick={() => goTo(null)}>
               <div className="brand-icon">V</div>
@@ -410,23 +220,24 @@ export default function App() {
             <div className="header-sub">AI-Powered Smart Bet Generator</div>
           </div>
 
-          {/* ── NAVIGATION TABS ─────── */}
+          {/* ── NAV TABS ──────────────── */}
           <div className="nav-tabs">
             <button className={`nav-tab ${currentPage === null ? "active" : ""}`} onClick={() => goTo(null)}>⚙️ Generator</button>
-            <button className={`nav-tab ${currentPage === "tips" ? "active" : ""}`} onClick={() => goTo("tips")}>🎯 Today's Tips</button>
+            <button className={`nav-tab ${currentPage === "tips" ? "active" : ""}`} onClick={() => goTo("tips")}>🎯 Tips</button>
+            <button className={`nav-tab ${currentPage === "league-tips" ? "active" : ""}`} onClick={() => goTo("league-tips")}>⚽ Leagues</button>
+            <button className={`nav-tab ${currentPage === "previews" ? "active" : ""}`} onClick={() => goTo("previews")}>📋 Previews</button>
             {user && <button className={`nav-tab ${currentPage === "dashboard" ? "active" : ""}`} onClick={() => goTo("dashboard")}>📊 My Slips</button>}
           </div>
 
-          {/* ── TODAY'S TIPS ──────────── */}
+          {/* ── CONTENT PAGES ─────────── */}
           {currentPage === "tips" && <TipsPage />}
-
-          {/* ── DASHBOARD / UPGRADE / SETTINGS ── */}
+          {currentPage === "league-tips" && <LeagueTipsPage onMatchPreview={goToMatchPreview} />}
+          {currentPage === "previews" && <MatchPreviewPage matchTip={matchPreviewTarget} allFixtures={fixtures} onBack={() => goTo(null)} />}
           {currentPage === "dashboard" && user && <DashboardPage user={user} profile={profile} onNavigate={goTo} />}
           {currentPage === "upgrade" && <UpgradePage profile={profile} />}
           {currentPage === "settings" && <SettingsPage profile={profile} />}
 
-          {/* ── STATIC PAGES ──────────── */}
-          {currentPage && !["tips", "dashboard", "upgrade", "settings"].includes(currentPage) && (
+          {currentPage && !["tips","league-tips","previews","dashboard","upgrade","settings"].includes(currentPage) && (
             <>
               <button className="back-btn" onClick={() => goTo(null)}>← Back to Generator</button>
               {currentPage === "about" && <AboutPage />}
@@ -440,207 +251,36 @@ export default function App() {
             </>
           )}
 
-          {/* ── MAIN APP ─────────────── */}
-          {!currentPage && (
-            <>
-          {dataLoading && (
-            <div className="data-status"><div className="spinner" /><div style={{ fontSize: 16, fontWeight: 600 }}>Loading today's fixtures...</div><div style={{ fontSize: 13, marginTop: 8 }}>Fetching real match data, odds, form, and injuries</div></div>
-          )}
+          {/* ── MAIN GENERATOR ────────── */}
+          {!currentPage && (<>
+          {dataLoading && (<div className="data-status"><div className="spinner" /><div style={{ fontSize: 16, fontWeight: 600 }}>Loading today's fixtures...</div><div style={{ fontSize: 13, marginTop: 8 }}>Fetching real match data, odds, form, and injuries</div></div>)}
+          {dataError && !fixtures.length && (<div className="card" style={{ textAlign: "center", color: "var(--red-400)" }}><div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Failed to load match data</div><div style={{ fontSize: 13, color: "var(--text-muted)" }}>{dataError}</div><button className="gen-btn" style={{ maxWidth: 200, margin: "16px auto 0" }} onClick={() => window.location.reload()}>Retry</button></div>)}
+          {!dataLoading && !dataError && fixtures.length === 0 && (<div className="card" style={{ textAlign: "center" }}><div style={{ fontSize: 36, marginBottom: 12 }}>⚽</div><div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>No fixtures loaded</div><div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16, lineHeight: 1.6 }}>The data server may still be warming up.</div><button className="gen-btn" style={{ maxWidth: 200, margin: "0 auto" }} onClick={() => window.location.reload()}>Reload</button></div>)}
 
-          {dataError && !fixtures.length && (
-            <div className="card" style={{ textAlign: "center", color: "var(--red-400)" }}>
-              <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Failed to load match data</div>
-              <div style={{ fontSize: 13, color: "var(--text-muted)" }}>{dataError}</div>
-              <button className="gen-btn" style={{ maxWidth: 200, margin: "16px auto 0" }} onClick={() => window.location.reload()}>Retry</button>
-            </div>
-          )}
+          {!dataLoading && fixtures.length > 0 && phase === "input" && (<>
+            {lastUpdated && <div style={{ textAlign: "center", fontSize: 11, color: "var(--text-muted)", marginBottom: 12 }}>Live data · Last updated: {new Date(lastUpdated).toLocaleString()} · {fixtures.length} fixtures loaded</div>}
+            <div className="card"><div className="card-title">Your Parameters</div><div className="form-grid"><div className="field"><label className="field-label">Target Winnings</label><div className="currency-input"><span className="currency-symbol">€</span><input className="field-input" type="number" value={targetWinnings} onChange={e => setTargetWinnings(e.target.value)} /></div></div><div className="field"><label className="field-label">Your Stake</label><div className="currency-input"><span className="currency-symbol">€</span><input className="field-input" type="number" value={stake} onChange={e => setStake(e.target.value)} /></div></div><div className="field"><label className="field-label">Selections (1-{Math.min(8, selectedFixtures.length)})</label><input className="field-input" type="number" min="1" max={Math.min(8, selectedFixtures.length)} value={numSelections} onChange={e => setNumSelections(e.target.value)} /></div><div className="field"><label className="field-label">Risk Level</label><div className="risk-options">{["conservative", "balanced", "aggressive"].map(r => <button key={r} className={`risk-btn ${riskLevel === r ? `active-${r}` : ""}`} onClick={() => setRiskLevel(r)}>{r === "conservative" ? "🛡 Safe" : r === "balanced" ? "⚖️ Balanced" : "🔥 Bold"}</button>)}</div></div></div></div>
+            <div className="card"><div className="card-title">Bet Types <span className="badge">{selectedMarketTypes.length}/{Object.keys(MARKET_CATEGORIES).length}</span></div><div className="market-types-grid">{Object.entries(MARKET_CATEGORIES).map(([key, cat]) => (<button key={key} className={`market-type-btn ${selectedMarketTypes.includes(key) ? "active" : ""}`} onClick={() => toggleMarketType(key)}><span>{cat.icon}</span> {cat.label}</button>))}</div></div>
+            <div className="card"><div className="card-title">Fixtures <span className="badge">{selectedFixtures.length}/{visibleFixtures.length}</span></div><div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>{[{ key: "today", label: "Today" }, { key: "tomorrow", label: "Tomorrow" }, { key: "weekend", label: "Weekend" }, { key: "all", label: "Next 7 Days" }].map(t => (<button key={t.key} onClick={() => setTimeRange(t.key)} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 13, fontWeight: 500, fontFamily: "'DM Sans',sans-serif", cursor: "pointer", border: timeRange === t.key ? "1px solid var(--gold-500)" : "1px solid var(--navy-600)", background: timeRange === t.key ? "rgba(212,175,55,0.12)" : "var(--navy-800)", color: timeRange === t.key ? "var(--gold-400)" : "var(--text-secondary)" }}>{t.label}</button>))}</div><div className="picker-controls"><button className="picker-control-btn" onClick={() => { const indices = []; visibleFixtures.forEach(vf => { const idx = fixtures.findIndex(f => f.id === vf.id); if (idx >= 0) indices.push(idx); }); setSelectedFixtures(indices); }}>Select All</button><button className="picker-control-btn" onClick={() => setSelectedFixtures([])}>Clear</button></div>{visibleFixtures.length === 0 && <div style={{ textAlign: "center", padding: "20px 0", color: "var(--text-muted)", fontSize: 13 }}>No fixtures found for this time range.</div>}{leagues.map(league => { const lf = fixturesByLeague[league]; const selCount = lf.filter(f => selectedFixtures.includes(f._idx)).length; const allSel = selCount === lf.length; const someSel = selCount > 0 && !allSel; const expanded = expandLeagues[league] !== false; return (<div key={league} className="league-group"><div className={`league-header ${allSel ? "all-selected" : someSel ? "some-selected" : ""}`} onClick={() => setExpandLeagues(p => ({ ...p, [league]: !expanded }))}><div className="league-name"><span style={{ fontSize: 12, color: "var(--text-muted)" }}>{expanded ? "▾" : "▸"}</span>{lf[0]?.leagueFlag || "⚽"} {league} <span className="league-count">{selCount}/{lf.length}</span></div><div className={`league-check ${allSel ? "checked" : someSel ? "partial" : ""}`} onClick={e => { e.stopPropagation(); toggleLeague(league); }}>{allSel ? "✓" : someSel ? "–" : ""}</div></div>{expanded && lf.map(fix => { const isSel = selectedFixtures.includes(fix._idx); return <div key={fix._idx} className={`fixture-row ${isSel ? "selected" : ""}`} onClick={() => toggleFixture(fix._idx)}><div className={`fixture-check ${isSel ? "checked" : ""}`}>{isSel ? "✓" : ""}</div><div className={`fixture-teams ${isSel ? "selected" : ""}`}>{fix.home} vs {fix.away}</div><div className="fixture-day-time">{fix.day} {fix.date?.slice(5)} {fix.time}</div></div>; })}</div>); })}</div>
+            <button className="gen-btn" onClick={handleGenerate} disabled={selectedFixtures.length < 1 || selectedMarketTypes.length === 0}><span style={{ fontSize: 20 }}>🎯</span> GENERATE SMART SLIP</button>
+          </>)}
 
-          {!dataLoading && !dataError && fixtures.length === 0 && (
-            <div className="card" style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>⚽</div>
-              <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: "var(--text-primary)" }}>No fixtures loaded</div>
-              <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16, lineHeight: 1.6 }}>The data server may still be warming up. This usually resolves within a minute on first load.</div>
-              <button className="gen-btn" style={{ maxWidth: 200, margin: "0 auto" }} onClick={() => window.location.reload()}>Reload</button>
-            </div>
-          )}
+          {phase === "loading" && (<div className="card" style={{ textAlign: "center", padding: "40px 24px" }}><div style={{ fontSize: 36, marginBottom: 12 }}>🤖</div><div style={{ fontSize: 18, fontWeight: 600 }}>Analyzing {selectedFixtures.length} Fixtures</div><div className="loading-bar-track"><div className="loading-bar-fill" style={{ width: `${loadProgress}%` }} /></div><div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{loadStages.slice(0, loadStage + 1).map((s, i) => <div key={i} style={{ marginBottom: 4, opacity: i === loadStage ? 1 : 0.5 }}>{i < loadStage ? "✓ " : "⏳ "}{s}</div>)}</div></div>)}
 
-          {/* ── INPUT ─────────────────── */}
-          {!dataLoading && fixtures.length > 0 && phase === "input" && (
-            <>
-              {lastUpdated && <div style={{ textAlign: "center", fontSize: 11, color: "var(--text-muted)", marginBottom: 12 }}>Live data · Last updated: {new Date(lastUpdated).toLocaleString()} · {fixtures.length} fixtures loaded</div>}
-
-              <div className="card">
-                <div className="card-title">Your Parameters</div>
-                <div className="form-grid">
-                  <div className="field"><label className="field-label">Target Winnings</label><div className="currency-input"><span className="currency-symbol">€</span><input className="field-input" type="number" value={targetWinnings} onChange={e => setTargetWinnings(e.target.value)} /></div></div>
-                  <div className="field"><label className="field-label">Your Stake</label><div className="currency-input"><span className="currency-symbol">€</span><input className="field-input" type="number" value={stake} onChange={e => setStake(e.target.value)} /></div></div>
-                  <div className="field"><label className="field-label">Selections (1-{Math.min(8, selectedFixtures.length)})</label><input className="field-input" type="number" min="1" max={Math.min(8, selectedFixtures.length)} value={numSelections} onChange={e => setNumSelections(e.target.value)} /></div>
-                  <div className="field"><label className="field-label">Risk Level</label>
-                    <div className="risk-options">{["conservative", "balanced", "aggressive"].map(r => <button key={r} className={`risk-btn ${riskLevel === r ? `active-${r}` : ""}`} onClick={() => setRiskLevel(r)}>{r === "conservative" ? "🛡 Safe" : r === "balanced" ? "⚖️ Balanced" : "🔥 Bold"}</button>)}</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="card">
-                <div className="card-title">Bet Types <span className="badge">{selectedMarketTypes.length}/{Object.keys(MARKET_CATEGORIES).length}</span></div>
-                <div className="market-types-grid">
-                  {Object.entries(MARKET_CATEGORIES).map(([key, cat]) => (
-                    <button key={key} className={`market-type-btn ${selectedMarketTypes.includes(key) ? "active" : ""}`} onClick={() => toggleMarketType(key)}><span>{cat.icon}</span> {cat.label}</button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="card">
-                <div className="card-title">Fixtures <span className="badge">{selectedFixtures.length}/{visibleFixtures.length}</span></div>
-                <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
-                  {[{ key: "today", label: "Today" }, { key: "tomorrow", label: "Tomorrow" }, { key: "weekend", label: "Weekend" }, { key: "all", label: "Next 7 Days" }].map(t => (
-                    <button key={t.key} onClick={() => setTimeRange(t.key)} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 13, fontWeight: 500, fontFamily: "'DM Sans',sans-serif", cursor: "pointer", transition: "all 0.2s", border: timeRange === t.key ? "1px solid var(--gold-500)" : "1px solid var(--navy-600)", background: timeRange === t.key ? "rgba(212,175,55,0.12)" : "var(--navy-800)", color: timeRange === t.key ? "var(--gold-400)" : "var(--text-secondary)" }}>{t.label}</button>
-                  ))}
-                </div>
-                <div className="picker-controls">
-                  <button className="picker-control-btn" onClick={() => { const indices = []; visibleFixtures.forEach(vf => { const idx = fixtures.findIndex(f => f.id === vf.id); if (idx >= 0) indices.push(idx); }); setSelectedFixtures(indices); }}>Select All</button>
-                  <button className="picker-control-btn" onClick={() => setSelectedFixtures([])}>Clear</button>
-                </div>
-                {visibleFixtures.length === 0 && <div style={{ textAlign: "center", padding: "20px 0", color: "var(--text-muted)", fontSize: 13 }}>No fixtures found for this time range. Try selecting a different period.</div>}
-                {leagues.map(league => {
-                  const lf = fixturesByLeague[league];
-                  const selCount = lf.filter(f => selectedFixtures.includes(f._idx)).length;
-                  const allSel = selCount === lf.length;
-                  const someSel = selCount > 0 && !allSel;
-                  const expanded = expandLeagues[league] !== false;
-                  return (
-                    <div key={league} className="league-group">
-                      <div className={`league-header ${allSel ? "all-selected" : someSel ? "some-selected" : ""}`} onClick={() => setExpandLeagues(p => ({ ...p, [league]: !expanded }))}>
-                        <div className="league-name"><span style={{ fontSize: 12, color: "var(--text-muted)" }}>{expanded ? "▾" : "▸"}</span>{lf[0]?.leagueFlag || "⚽"} {league} <span className="league-count">{selCount}/{lf.length}</span></div>
-                        <div className={`league-check ${allSel ? "checked" : someSel ? "partial" : ""}`} onClick={e => { e.stopPropagation(); toggleLeague(league); }}>{allSel ? "✓" : someSel ? "–" : ""}</div>
-                      </div>
-                      {expanded && lf.map(fix => {
-                        const isSel = selectedFixtures.includes(fix._idx);
-                        return <div key={fix._idx} className={`fixture-row ${isSel ? "selected" : ""}`} onClick={() => toggleFixture(fix._idx)}><div className={`fixture-check ${isSel ? "checked" : ""}`}>{isSel ? "✓" : ""}</div><div className={`fixture-teams ${isSel ? "selected" : ""}`}>{fix.home} vs {fix.away}</div><div className="fixture-day-time">{fix.day} {fix.date?.slice(5)} {fix.time}</div></div>;
-                      })}
-                    </div>
-                  );
-                })}
-              </div>
-
-              <button className="gen-btn" onClick={handleGenerate} disabled={selectedFixtures.length < 1 || selectedMarketTypes.length === 0}>
-                <span style={{ fontSize: 20 }}>🎯</span> GENERATE SMART SLIP
-              </button>
-            </>
-          )}
-
-          {/* ── LOADING ──────────────── */}
-          {phase === "loading" && (
-            <div className="card" style={{ textAlign: "center", padding: "40px 24px" }}>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>🤖</div>
-              <div style={{ fontSize: 18, fontWeight: 600 }}>Analyzing {selectedFixtures.length} Fixtures</div>
-              <div className="loading-bar-track"><div className="loading-bar-fill" style={{ width: `${loadProgress}%` }} /></div>
-              <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{loadStages.slice(0, loadStage + 1).map((s, i) => <div key={i} style={{ marginBottom: 4, opacity: i === loadStage ? 1 : 0.5 }}>{i < loadStage ? "✓ " : "⏳ "}{s}</div>)}</div>
-            </div>
-          )}
-
-          {/* ── RESULTS ──────────────── */}
-          {phase === "results" && slip && (
-            <>
-              <div className="card">
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
-                  <div>
-                    <div className="card-title" style={{ marginBottom: 4 }}>{slip.selections.length === 1 ? "AI-Generated Single Bet" : "AI-Generated Accumulator"}</div>
-                    <div style={{ fontSize: 13, color: "var(--text-muted)" }}>{slip.selections.length} selections · {slip.valueCount} value bets · Real bookmaker odds</div>
-                  </div>
-                  <div className={`ev-badge ${evClass}`}>Avg Edge: {slip.avgEdge > 0 ? "+" : ""}{slip.avgEdge}% {evLabel}</div>
-                </div>
-                {slip.selections.map((sel, i) => (
-                  <div key={sel.id} className="sel-card" style={{ animationDelay: `${i * 0.1}s` }}>
-                    <div className="sel-header">
-                      <div style={{ flex: 1 }}>
-                        <div className="sel-match">⚽ {sel.home} vs {sel.away}</div>
-                        <div className="sel-meta"><span className="sel-league">{sel.leagueFlag} {sel.league} · {sel.day} {sel.time}</span><span className="sel-market">{sel.market}</span></div>
-                        <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>AI prob: <span style={{ color: "var(--text-primary)", fontFamily: "'JetBrains Mono',monospace" }}>{sel.aiProbability}%</span> · Book implied: <span style={{ fontFamily: "'JetBrains Mono',monospace" }}>{sel.impliedProbability}%</span></div>
-                      </div>
-                      <div style={{ textAlign: "right" }}>
-                        <div className="sel-odds">{sel.bookmakerOdds}</div>
-                        <div className={`sel-edge ${parseFloat(sel.edge) > 0 ? "edge-pos" : "edge-neg"}`}>{parseFloat(sel.edge) > 0 ? "+" : ""}{sel.edge}%</div>
-                      </div>
-                    </div>
-                    <button className="analysis-toggle" onClick={() => setExpandedCards(p => ({ ...p, [sel.id]: !p[sel.id] }))}>{expandedCards[sel.id] ? "▾ Hide analysis" : "▸ Show full analysis"}</button>
-                    {expandedCards[sel.id] && <AnalysisBreakdown sel={sel} />}
-                  </div>
-                ))}
-              </div>
-
-              <div className="summary">
-                {slip.targetOdds && (
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 8, marginBottom: 16, background: slip.targetHit ? "rgba(34,197,94,0.06)" : "rgba(245,158,11,0.06)", border: `1px solid ${slip.targetHit ? "rgba(34,197,94,0.12)" : "rgba(245,158,11,0.12)"}`, fontSize: 13, flexWrap: "wrap", gap: 8 }}>
-                    <div style={{ color: "var(--text-secondary)" }}>Target: <span style={{ color: "var(--gold-400)", fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>€{targetWinnings}</span></div>
-                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 600, color: slip.targetHit ? "var(--green-400)" : "var(--orange-500)" }}>{slip.targetHit ? `✓ Slip at ${slip.combinedOdds}x → €${potentialReturn}` : `Slip at ${slip.combinedOdds}x`}</div>
-                  </div>
-                )}
-                <div className="summary-grid">
-                  <div className="summary-item"><div className="summary-label">Combined Odds</div><div className="summary-value" style={{ color: "var(--text-primary)" }}>{slip.combinedOdds}x</div></div>
-                  <div className="summary-item"><div className="summary-label">Potential Return</div><div className="summary-value" style={{ color: "var(--gold-400)" }}>€{potentialReturn.toLocaleString()}</div></div>
-                  <div className="summary-item"><div className="summary-label">Profit</div><div className="summary-value" style={{ color: "var(--green-400)" }}>€{profit.toLocaleString()}</div></div>
-                  <div className="summary-item"><div className="summary-label">Win Probability</div><div className="summary-value" style={{ color: winProbColor }}>{winProb}%</div><div className="conf-bar"><div className="conf-fill" style={{ width: `${Math.min(winProb * 2.5, 100)}%`, background: winProbColor }} /></div></div>
-                </div>
-                <div className="risk-warning" style={{ background: winProb < 10 ? "rgba(239,68,68,0.08)" : winProb < 25 ? "rgba(245,158,11,0.08)" : "rgba(34,197,94,0.08)", color: winProb < 10 ? "var(--red-400)" : winProb < 25 ? "var(--orange-500)" : "var(--green-400)", border: `1px solid ${winProb < 10 ? "rgba(239,68,68,0.15)" : winProb < 25 ? "rgba(245,158,11,0.15)" : "rgba(34,197,94,0.15)"}` }}>
-                  {winProb < 5 && `⚠️ High risk — roughly 1 in ${Math.round(100 / Math.max(winProb, 0.1))} chance.`}
-                  {winProb >= 5 && winProb < 15 && `⚠️ About 1 in ${Math.round(100 / winProb)} chance. Edges favor you over volume.`}
-                  {winProb >= 15 && winProb < 30 && `Moderate risk — ~1 in ${Math.round(100 / winProb)} chance.`}
-                  {winProb >= 30 && `Solid probability. ${slip.avgEdge > 0 ? "Positive edge detected." : ""}`}
-                </div>
-                {slip.suggestions?.length > 0 && (
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gold-500)", marginBottom: 10 }}>💡 AI Advisor</div>
-                    {slip.suggestions.map((sug, i) => (
-                      <div key={i} className="suggestion-card" style={{ background: sug.icon === "⚠️" ? "rgba(239,68,68,0.06)" : sug.icon === "✅" ? "rgba(34,197,94,0.06)" : "rgba(212,175,55,0.06)", border: `1px solid ${sug.icon === "⚠️" ? "rgba(239,68,68,0.12)" : sug.icon === "✅" ? "rgba(34,197,94,0.12)" : "rgba(212,175,55,0.12)"}` }}
-                        onClick={() => { if (!sug.action) return; const v = sug.action.split("_")[2]; if (sug.action.startsWith("try_legs")) setNumSelections(v); else if (sug.action.startsWith("try_stake")) setStake(v); else if (sug.action.startsWith("try_target")) setTargetWinnings(v); setPhase("input"); setSlip(null); }}>
-                        <span style={{ fontSize: 18 }}>{sug.icon}</span>
-                        <div><div className="suggestion-title">{sug.title}</div><div className="suggestion-detail">{sug.detail}</div>{sug.action && <div className="suggestion-action">Click to apply →</div>}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="action-buttons">
-                  <button className="action-btn action-primary" onClick={handleGenerate}>🔄 New Slip</button>
-                  <button className="action-btn action-secondary" onClick={() => { setPhase("input"); setSlip(null); }}>⚙️ Parameters</button>
-                  {/* ── SAVE SLIP BUTTON ──── */}
-                  {user ? (
-                    <button
-                      className="action-btn action-secondary"
-                      onClick={handleSaveSlip}
-                      disabled={saveStatus === "saving" || saveStatus === "saved"}
-                      style={saveStatus === "saved" ? { borderColor: "var(--green-500)", color: "var(--green-400)" } : {}}
-                    >
-                      {saveStatus === "saving" ? "💾 Saving..." :
-                       saveStatus === "saved" ? "✓ Saved!" :
-                       saveStatus === "limit" ? "🔒 Limit reached" :
-                       saveStatus === "error" ? "❌ Error" :
-                       "💾 Save Slip"}
-                    </button>
-                  ) : (
-                    <button className="action-btn action-secondary" onClick={() => setShowAuth(true)}>
-                      💾 Sign in to Save
-                    </button>
-                  )}
-                </div>
-                {saveStatus === "limit" && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 10, background: "rgba(212,175,55,0.06)", border: "1px solid rgba(212,175,55,0.15)", fontSize: 13, color: "var(--text-secondary)", marginTop: 12, cursor: "pointer", transition: "all 0.2s" }} onClick={() => goTo("upgrade")}>
-                    <span>You've reached the 5-slip limit on the Free plan.</span>
-                    <span style={{ color: "var(--gold-400)", fontWeight: 600 }}>Upgrade to Premium →</span>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
+          {phase === "results" && slip && (<>
+            <div className="card"><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 16 }}><div><div className="card-title" style={{ marginBottom: 4 }}>{slip.selections.length === 1 ? "AI-Generated Single Bet" : "AI-Generated Accumulator"}</div><div style={{ fontSize: 13, color: "var(--text-muted)" }}>{slip.selections.length} selections · {slip.valueCount} value bets · Real bookmaker odds</div></div><div className={`ev-badge ${evClass}`}>Avg Edge: {slip.avgEdge > 0 ? "+" : ""}{slip.avgEdge}% {evLabel}</div></div>{slip.selections.map((sel, i) => (<div key={sel.id} className="sel-card" style={{ animationDelay: `${i * 0.1}s` }}><div className="sel-header"><div style={{ flex: 1 }}><div className="sel-match">⚽ {sel.home} vs {sel.away}</div><div className="sel-meta"><span className="sel-league">{sel.leagueFlag} {sel.league} · {sel.day} {sel.time}</span><span className="sel-market">{sel.market}</span></div><div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>AI prob: <span style={{ color: "var(--text-primary)", fontFamily: "'JetBrains Mono',monospace" }}>{sel.aiProbability}%</span> · Book implied: <span style={{ fontFamily: "'JetBrains Mono',monospace" }}>{sel.impliedProbability}%</span></div></div><div style={{ textAlign: "right" }}><div className="sel-odds">{sel.bookmakerOdds}</div><div className={`sel-edge ${parseFloat(sel.edge) > 0 ? "edge-pos" : "edge-neg"}`}>{parseFloat(sel.edge) > 0 ? "+" : ""}{sel.edge}%</div></div></div><button className="analysis-toggle" onClick={() => setExpandedCards(p => ({ ...p, [sel.id]: !p[sel.id] }))}>{expandedCards[sel.id] ? "▾ Hide analysis" : "▸ Show full analysis"}</button>{expandedCards[sel.id] && <AnalysisBreakdown sel={sel} />}</div>))}</div>
+            <div className="summary">{slip.targetOdds && (<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 8, marginBottom: 16, background: slip.targetHit ? "rgba(34,197,94,0.06)" : "rgba(245,158,11,0.06)", border: `1px solid ${slip.targetHit ? "rgba(34,197,94,0.12)" : "rgba(245,158,11,0.12)"}`, fontSize: 13, flexWrap: "wrap", gap: 8 }}><div style={{ color: "var(--text-secondary)" }}>Target: <span style={{ color: "var(--gold-400)", fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>€{targetWinnings}</span></div><div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 600, color: slip.targetHit ? "var(--green-400)" : "var(--orange-500)" }}>{slip.targetHit ? `✓ Slip at ${slip.combinedOdds}x → €${potentialReturn}` : `Slip at ${slip.combinedOdds}x`}</div></div>)}<div className="summary-grid"><div className="summary-item"><div className="summary-label">Combined Odds</div><div className="summary-value" style={{ color: "var(--text-primary)" }}>{slip.combinedOdds}x</div></div><div className="summary-item"><div className="summary-label">Potential Return</div><div className="summary-value" style={{ color: "var(--gold-400)" }}>€{potentialReturn.toLocaleString()}</div></div><div className="summary-item"><div className="summary-label">Profit</div><div className="summary-value" style={{ color: "var(--green-400)" }}>€{profit.toLocaleString()}</div></div><div className="summary-item"><div className="summary-label">Win Probability</div><div className="summary-value" style={{ color: winProbColor }}>{winProb}%</div><div className="conf-bar"><div className="conf-fill" style={{ width: `${Math.min(winProb * 2.5, 100)}%`, background: winProbColor }} /></div></div></div><div className="risk-warning" style={{ background: winProb < 10 ? "rgba(239,68,68,0.08)" : winProb < 25 ? "rgba(245,158,11,0.08)" : "rgba(34,197,94,0.08)", color: winProb < 10 ? "var(--red-400)" : winProb < 25 ? "var(--orange-500)" : "var(--green-400)", border: `1px solid ${winProb < 10 ? "rgba(239,68,68,0.15)" : winProb < 25 ? "rgba(245,158,11,0.15)" : "rgba(34,197,94,0.15)"}` }}>{winProb < 5 && `⚠️ High risk — roughly 1 in ${Math.round(100 / Math.max(winProb, 0.1))} chance.`}{winProb >= 5 && winProb < 15 && `⚠️ About 1 in ${Math.round(100 / winProb)} chance. Edges favor you over volume.`}{winProb >= 15 && winProb < 30 && `Moderate risk — ~1 in ${Math.round(100 / winProb)} chance.`}{winProb >= 30 && `Solid probability. ${slip.avgEdge > 0 ? "Positive edge detected." : ""}`}</div>{slip.suggestions?.length > 0 && (<div style={{ marginBottom: 16 }}><div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gold-500)", marginBottom: 10 }}>💡 AI Advisor</div>{slip.suggestions.map((sug, i) => (<div key={i} className="suggestion-card" style={{ background: sug.icon === "⚠️" ? "rgba(239,68,68,0.06)" : sug.icon === "✅" ? "rgba(34,197,94,0.06)" : "rgba(212,175,55,0.06)", border: `1px solid ${sug.icon === "⚠️" ? "rgba(239,68,68,0.12)" : sug.icon === "✅" ? "rgba(34,197,94,0.12)" : "rgba(212,175,55,0.12)"}` }} onClick={() => { if (!sug.action) return; const v = sug.action.split("_")[2]; if (sug.action.startsWith("try_legs")) setNumSelections(v); else if (sug.action.startsWith("try_stake")) setStake(v); else if (sug.action.startsWith("try_target")) setTargetWinnings(v); setPhase("input"); setSlip(null); }}><span style={{ fontSize: 18 }}>{sug.icon}</span><div><div className="suggestion-title">{sug.title}</div><div className="suggestion-detail">{sug.detail}</div>{sug.action && <div className="suggestion-action">Click to apply →</div>}</div></div>))}</div>)}<div className="action-buttons"><button className="action-btn action-primary" onClick={handleGenerate}>🔄 New Slip</button><button className="action-btn action-secondary" onClick={() => { setPhase("input"); setSlip(null); }}>⚙️ Parameters</button>{user ? (<button className="action-btn action-secondary" onClick={handleSaveSlip} disabled={saveStatus === "saving" || saveStatus === "saved"} style={saveStatus === "saved" ? { borderColor: "var(--green-500)", color: "var(--green-400)" } : {}}>{saveStatus === "saving" ? "💾 Saving..." : saveStatus === "saved" ? "✓ Saved!" : saveStatus === "limit" ? "🔒 Limit" : saveStatus === "error" ? "❌ Error" : "💾 Save"}</button>) : (<button className="action-btn action-secondary" onClick={() => setShowAuth(true)}>💾 Sign in to Save</button>)}</div>{saveStatus === "limit" && (<div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 10, background: "rgba(212,175,55,0.06)", border: "1px solid rgba(212,175,55,0.15)", fontSize: 13, color: "var(--text-secondary)", marginTop: 12, cursor: "pointer" }} onClick={() => goTo("upgrade")}><span>Free plan limit reached.</span><span style={{ color: "var(--gold-400)", fontWeight: 600 }}>Upgrade to Premium →</span></div>)}</div>
+          </>)}
 
           <div className="disclaimer">⚠️ Gambling involves risk. Predictions are statistical, not guaranteed.<br />Always bet responsibly. 18+ only.</div>
-            </>
-          )}
+          </>)}
 
           {/* ── FOOTER ───────────────── */}
           <div className="site-footer">
             <div className="footer-links">
               <button className="footer-link" onClick={() => goTo("tips")}>Today's Tips</button>
+              <button className="footer-link" onClick={() => goTo("league-tips")}>League Tips</button>
+              <button className="footer-link" onClick={() => goTo("previews")}>Match Previews</button>
               <button className="footer-link" onClick={() => goTo("how-it-works")}>How It Works</button>
               <button className="footer-link" onClick={() => goTo("strategy")}>Betting Strategy</button>
               <button className="footer-link" onClick={() => goTo("bankroll")}>Bankroll Management</button>
@@ -650,24 +290,11 @@ export default function App() {
               <button className="footer-link" onClick={() => goTo("terms")}>Terms of Service</button>
               <button className="footer-link" onClick={() => goTo("affiliate")}>Affiliate Disclosure</button>
             </div>
-            <div className="footer-copy">
-              ValueBetHub © 2026 — AI-powered multi-factor analysis for smarter betting.<br />
-              18+ only. Gamble responsibly. ValueBetHub is not a bookmaker or gambling operator.
-            </div>
+            <div className="footer-copy">ValueBetHub © 2026 — AI-powered multi-factor analysis for smarter betting.<br />18+ only. Gamble responsibly. ValueBetHub is not a bookmaker or gambling operator.</div>
           </div>
         </div>
       </div>
-
-      {/* ── AUTH MODAL ────────────── */}
-      {showAuth && (
-        <AuthModal
-          onClose={() => setShowAuth(false)}
-          onAuth={(session) => {
-            setUser(session.user);
-            getProfile(session.user.id).then(p => setProfile(p));
-          }}
-        />
-      )}
+      {showAuth && <AuthModal onClose={() => setShowAuth(false)} onAuth={(session) => { setUser(session.user); getProfile(session.user.id).then(p => setProfile(p)); }} />}
     </>
   );
 }
