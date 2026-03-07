@@ -1,0 +1,8 @@
+# ValueBetHub robots.txt
+User-agent: *
+Allow: /
+
+Sitemap: https://valuebethub.com/sitemap.xml
+
+# Crawl-delay suggestion for polite bots
+Crawl-delay: 1
