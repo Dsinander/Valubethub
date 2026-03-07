@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { fetchMatchData, generateOpportunities, buildSlip, MARKET_CATEGORIES } from "./api.js";
 import { AboutPage, PrivacyPage, TermsPage, ResponsibleGamblingPage, AffiliateDisclosurePage, HowItWorksPage, BankrollManagementPage, BettingStrategyPage, PAGE_CSS } from "./Pages.jsx";
+import TipsPage from "./TipsPage.jsx";
 
 // ═══════════════════════════════════════════════════════════════════════
 // STYLES
@@ -114,6 +115,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--navy-950);color:var(--tex
 @keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:640px){.inner{padding:12px 12px 40px}.card{padding:18px 14px}.summary-grid{grid-template-columns:1fr 1fr}.sel-header{flex-direction:column}}
 ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--navy-900)}::-webkit-scrollbar-thumb{background:var(--navy-600);border-radius:3px}
+.nav-tabs{display:flex;justify-content:center;gap:4px;margin-bottom:20px}
+.nav-tab{padding:10px 20px;border-radius:10px;border:1px solid var(--navy-600);background:var(--navy-800);color:var(--text-secondary);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:6px}
+.nav-tab:hover{border-color:var(--navy-400);color:var(--text-primary)}
+.nav-tab.active{border-color:var(--gold-500);background:rgba(212,175,55,0.1);color:var(--gold-400)}
 `;
 
 // ─── ANALYSIS BREAKDOWN ──────────────────────────────────────────────
@@ -231,7 +236,7 @@ export default function App() {
 
   // App state
   const [phase, setPhase] = useState("input");
-  const [currentPage, setCurrentPage] = useState(null); // null = main app, or "about", "privacy", etc.
+  const [currentPage, setCurrentPage] = useState(null); // null = main app, "tips", "about", etc.
   const [loadProgress, setLoadProgress] = useState(0);
   const [loadStage, setLoadStage] = useState(0);
   const [slip, setSlip] = useState(null);
@@ -359,23 +364,45 @@ export default function App() {
   const evLabel = slip ? (slip.avgEdge > 3 ? "STRONG" : slip.avgEdge > 1.5 ? "GOOD" : slip.avgEdge > 0 ? "MARGINAL" : "NEGATIVE") : "";
   const evClass = slip ? (slip.avgEdge > 3 ? "ev-strong" : slip.avgEdge > 1.5 ? "ev-good" : slip.avgEdge > 0 ? "ev-marginal" : "ev-negative") : "";
 
+  // Helper: navigate to page
+  const goTo = (page) => { setCurrentPage(page); window.scrollTo(0, 0); };
+
   return (
     <>
       <style>{CSS}{PAGE_CSS}</style>
       <div className="app">
         <div className="inner">
           <div className="header">
-            <div className="brand">
+            <div className="brand" style={{ cursor: "pointer" }} onClick={() => goTo(null)}>
               <div className="brand-icon">V</div>
               <div className="brand-name">Value<span>Bet</span>Hub</div>
             </div>
             <div className="header-sub">AI-Powered Smart Bet Generator</div>
           </div>
 
+          {/* ── NAVIGATION TABS ─────── */}
+          <div className="nav-tabs">
+            <button
+              className={`nav-tab ${currentPage === null ? "active" : ""}`}
+              onClick={() => goTo(null)}
+            >
+              ⚙️ Generator
+            </button>
+            <button
+              className={`nav-tab ${currentPage === "tips" ? "active" : ""}`}
+              onClick={() => goTo("tips")}
+            >
+              🎯 Today's Tips
+            </button>
+          </div>
+
+          {/* ── TODAY'S TIPS PAGE ─────── */}
+          {currentPage === "tips" && <TipsPage />}
+
           {/* ── STATIC PAGES ──────────── */}
-          {currentPage && (
+          {currentPage && currentPage !== "tips" && (
             <>
-              <button className="back-btn" onClick={() => setCurrentPage(null)}>← Back to Generator</button>
+              <button className="back-btn" onClick={() => goTo(null)}>← Back to Generator</button>
               {currentPage === "about" && <AboutPage />}
               {currentPage === "privacy" && <PrivacyPage />}
               {currentPage === "terms" && <TermsPage />}
@@ -594,14 +621,15 @@ export default function App() {
           {/* ── FOOTER ───────────────── */}
           <div className="site-footer">
             <div className="footer-links">
-              <button className="footer-link" onClick={() => { setCurrentPage("how-it-works"); window.scrollTo(0,0); }}>How It Works</button>
-              <button className="footer-link" onClick={() => { setCurrentPage("strategy"); window.scrollTo(0,0); }}>Betting Strategy</button>
-              <button className="footer-link" onClick={() => { setCurrentPage("bankroll"); window.scrollTo(0,0); }}>Bankroll Management</button>
-              <button className="footer-link" onClick={() => { setCurrentPage("about"); window.scrollTo(0,0); }}>About</button>
-              <button className="footer-link" onClick={() => { setCurrentPage("responsible"); window.scrollTo(0,0); }}>Responsible Gambling</button>
-              <button className="footer-link" onClick={() => { setCurrentPage("privacy"); window.scrollTo(0,0); }}>Privacy Policy</button>
-              <button className="footer-link" onClick={() => { setCurrentPage("terms"); window.scrollTo(0,0); }}>Terms of Service</button>
-              <button className="footer-link" onClick={() => { setCurrentPage("affiliate"); window.scrollTo(0,0); }}>Affiliate Disclosure</button>
+              <button className="footer-link" onClick={() => goTo("tips")}>Today's Tips</button>
+              <button className="footer-link" onClick={() => goTo("how-it-works")}>How It Works</button>
+              <button className="footer-link" onClick={() => goTo("strategy")}>Betting Strategy</button>
+              <button className="footer-link" onClick={() => goTo("bankroll")}>Bankroll Management</button>
+              <button className="footer-link" onClick={() => goTo("about")}>About</button>
+              <button className="footer-link" onClick={() => goTo("responsible")}>Responsible Gambling</button>
+              <button className="footer-link" onClick={() => goTo("privacy")}>Privacy Policy</button>
+              <button className="footer-link" onClick={() => goTo("terms")}>Terms of Service</button>
+              <button className="footer-link" onClick={() => goTo("affiliate")}>Affiliate Disclosure</button>
             </div>
             <div className="footer-copy">
               ValueBetHub © 2026 — AI-powered multi-factor analysis for smarter betting.<br />
