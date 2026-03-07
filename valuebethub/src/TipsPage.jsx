@@ -110,9 +110,10 @@ function generateReasoning(tip) {
 
 // Confidence level based on edge
 function getConfidence(edge) {
-  if (edge > 3.5) return { label: "High Confidence", color: "var(--green-400)", bg: "rgba(34,197,94,0.12)", border: "rgba(34,197,94,0.25)" };
-  if (edge > 1.5) return { label: "Medium Confidence", color: "var(--gold-400)", bg: "rgba(212,175,55,0.12)", border: "rgba(212,175,55,0.25)" };
-  return { label: "Speculative", color: "var(--orange-500)", bg: "rgba(245,158,11,0.12)", border: "rgba(245,158,11,0.25)" };
+  if (edge > 3) return { label: "High Confidence", color: "var(--green-400)", bg: "rgba(34,197,94,0.12)", border: "rgba(34,197,94,0.25)" };
+  if (edge > 1) return { label: "Medium Confidence", color: "var(--gold-400)", bg: "rgba(212,175,55,0.12)", border: "rgba(212,175,55,0.25)" };
+  if (edge > 0) return { label: "Slight Edge", color: "var(--blue-500)", bg: "rgba(59,130,246,0.12)", border: "rgba(59,130,246,0.25)" };
+  return { label: "AI Pick", color: "var(--text-muted)", bg: "rgba(148,163,184,0.1)", border: "rgba(148,163,184,0.2)" };
 }
 
 // Market display name
@@ -157,16 +158,17 @@ export default function TipsPage() {
       );
       const opps = generateOpportunities(result.fixtures, allMarkets);
 
-      // Filter to only positive edge bets, sort by edge (highest first)
-      const valueBets = opps
-        .filter(o => o.isValue && parseFloat(o.edge) > 0.5 && o.bookmakerOdds >= 1.25 && o.bookmakerOdds <= 4.5)
+      // Sort all opportunities by edge — show the best available picks
+      // even if edges are small (bookmakers are good at their job!)
+      const candidates = opps
+        .filter(o => o.bookmakerOdds >= 1.15 && o.bookmakerOdds <= 6.0 && parseFloat(o.edge) > -2)
         .sort((a, b) => parseFloat(b.edge) - parseFloat(a.edge));
 
-      // Pick the best 5, ensuring no duplicate matches
+      // Pick the best 8, ensuring no duplicate matches
       const picked = [];
       const usedMatches = new Set();
-      for (const bet of valueBets) {
-        if (picked.length >= 5) break;
+      for (const bet of candidates) {
+        if (picked.length >= 8) break;
         const matchKey = `${bet.home}-${bet.away}`;
         if (usedMatches.has(matchKey)) continue;
         usedMatches.add(matchKey);
