@@ -380,18 +380,59 @@ export default async (req) => {
     // Sort by date (closest first) for enrichment priority
     rawFixtures.sort((a, b) => new Date(a.fixture.date) - new Date(b.fixture.date));
 
-    // 2. Enrich closest fixtures with predictions + odds
-    const enrichLimit = Math.min(6, rawFixtures.length);
-    const toEnrich = rawFixtures.slice(0, enrichLimit);
-    const basicOnly = rawFixtures.slice(enrichLimit);
+    // ═══════════════════════════════════════════════════════════════════
+    // ENRICHMENT STRATEGY:
+    // - Top 10 fixtures: FULL enrichment (predictions + odds) = 20 API calls
+    //   → These get complete analysis, H2H, form data for match previews
+    // - Next 20 fixtures: ODDS ONLY = 20 API calls
+    //   → These get odds for tips/league tips but lighter analysis
+    // - Rest: basic (no API calls) — appear in picker only
+    // Total: 7 (days) + 20 (full) + 20 (odds) = ~47 calls per refresh
+    // With 12h cache = ~94 calls/day (safe for free API plan)
+    // ═══════════════════════════════════════════════════════════════════
+    
+    // Spread enrichment across leagues so every league gets coverage
+    const spreadAcrossLeagues = (fixtures, limit) => {
+      const byLeague = {};
+      fixtures.forEach(f => {
+        const league = LEAGUE_IDS[f.league?.id] || "other";
+        if (!byLeague[league]) byLeague[league] = [];
+        byLeague[league].push(f);
+      });
+      
+      const selected = [];
+      const leagueKeys = Object.keys(byLeague);
+      let round = 0;
+      while (selected.length < limit && round < 20) {
+        for (const league of leagueKeys) {
+          if (selected.length >= limit) break;
+          if (byLeague[league][round]) {
+            selected.push(byLeague[league][round]);
+          }
+        }
+        round++;
+      }
+      return selected;
+    };
 
-    // ═══════════════════════════════════════════════════════════════════
-    // FIX #3: Enrich ALL fixtures in PARALLEL (was serial for-loop)
-    // Old: 6 sequential batches × ~1-2s each = 6-12s (TIMEOUT!)
-    // New: all 12 calls fire at once = ~1-2s total
-    // ═══════════════════════════════════════════════════════════════════
-    const enrichedFixtures = await Promise.all(
-      toEnrich.map(async (fixture) => {
+    const fullEnrichLimit = Math.min(10, rawFixtures.length);
+    const oddsOnlyLimit = Math.min(20, Math.max(0, rawFixtures.length - fullEnrichLimit));
+    
+    // Pick fixtures spread across leagues for full enrichment
+    const toFullEnrich = spreadAcrossLeagues(rawFixtures, fullEnrichLimit);
+    const fullEnrichIds = new Set(toFullEnrich.map(f => f.fixture.id));
+    
+    // Remaining fixtures for odds-only enrichment
+    const remainingForOdds = rawFixtures.filter(f => !fullEnrichIds.has(f.fixture.id));
+    const toOddsOnly = spreadAcrossLeagues(remainingForOdds, oddsOnlyLimit);
+    const oddsOnlyIds = new Set(toOddsOnly.map(f => f.fixture.id));
+    
+    // Everything else is basic
+    const basicOnly = rawFixtures.filter(f => !fullEnrichIds.has(f.fixture.id) && !oddsOnlyIds.has(f.fixture.id));
+
+    // Full enrichment: predictions + odds (in parallel)
+    const fullEnrichedFixtures = await Promise.all(
+      toFullEnrich.map(async (fixture) => {
         const fixtureId = fixture.fixture.id;
         try {
           const [prediction, oddsData] = await Promise.all([
@@ -405,10 +446,25 @@ export default async (req) => {
       })
     );
 
-    // Basic fixtures (no predictions/odds — appear in picker)
+    // Odds-only enrichment: just odds (in parallel) — enough for tips
+    const oddsOnlyFixtures = await Promise.all(
+      toOddsOnly.map(async (fixture) => {
+        const fixtureId = fixture.fixture.id;
+        try {
+          const oddsData = await fetchOdds(fixtureId);
+          return transformFixture(fixture, null, [], oddsData);
+        } catch (e) {
+          return transformFixture(fixture, null, [], []);
+        }
+      })
+    );
+
+    // Basic fixtures (no API calls — appear in picker only)
     const basicFixtures = basicOnly.map(fixture => transformFixture(fixture, null, [], []));
 
-    const allFixtures = [...enrichedFixtures, ...basicFixtures];
+    const allFixtures = [...fullEnrichedFixtures, ...oddsOnlyFixtures, ...basicFixtures];
+    
+    console.log(`Enrichment: ${fullEnrichedFixtures.length} full, ${oddsOnlyFixtures.length} odds-only, ${basicFixtures.length} basic`);
 
     // NEVER cache empty results
     if (allFixtures.length > 0) {
@@ -422,7 +478,8 @@ export default async (req) => {
       fixtures: allFixtures,
       debug: {
         rawCount: rawFixtures.length,
-        enrichedCount: enrichedFixtures.length,
+        fullEnrichedCount: fullEnrichedFixtures.length,
+        oddsOnlyCount: oddsOnlyFixtures.length,
         basicCount: basicFixtures.length,
         datesFetched: Array.from({ length: 7 }, (_, i) => getDateStr(i)),
       },
