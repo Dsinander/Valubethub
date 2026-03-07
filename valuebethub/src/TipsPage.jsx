@@ -109,10 +109,11 @@ function generateReasoning(tip) {
 }
 
 // Confidence level based on edge
-function getConfidence(edge) {
-  if (edge > 3) return { label: "High Confidence", color: "var(--green-400)", bg: "rgba(34,197,94,0.12)", border: "rgba(34,197,94,0.25)" };
-  if (edge > 1) return { label: "Medium Confidence", color: "var(--gold-400)", bg: "rgba(212,175,55,0.12)", border: "rgba(212,175,55,0.25)" };
-  if (edge > 0) return { label: "Slight Edge", color: "var(--blue-500)", bg: "rgba(59,130,246,0.12)", border: "rgba(59,130,246,0.25)" };
+function getConfidence(edge, prob) {
+  if (edge > 2 && prob >= 55) return { label: "Strong Pick", color: "var(--green-400)", bg: "rgba(34,197,94,0.12)", border: "rgba(34,197,94,0.25)" };
+  if (edge > 0 && prob >= 45) return { label: "Value Bet", color: "var(--gold-400)", bg: "rgba(212,175,55,0.12)", border: "rgba(212,175,55,0.25)" };
+  if (prob >= 55) return { label: "High Probability", color: "var(--blue-500)", bg: "rgba(59,130,246,0.12)", border: "rgba(59,130,246,0.25)" };
+  if (edge > 0) return { label: "Slight Edge", color: "var(--gold-400)", bg: "rgba(212,175,55,0.10)", border: "rgba(212,175,55,0.20)" };
   return { label: "AI Pick", color: "var(--text-muted)", bg: "rgba(148,163,184,0.1)", border: "rgba(148,163,184,0.2)" };
 }
 
@@ -158,16 +159,39 @@ export default function TipsPage() {
       );
       const opps = generateOpportunities(result.fixtures, allMarkets);
 
-      // Sort all opportunities by edge — show the best available picks
-      // even if edges are small (bookmakers are good at their job!)
-      const candidates = opps
-        .filter(o => o.bookmakerOdds >= 1.15 && o.bookmakerOdds <= 6.0 && parseFloat(o.edge) > -2)
-        .sort((a, b) => parseFloat(b.edge) - parseFloat(a.edge));
+      // Smart tip selection: must be LIKELY and have VALUE
+      // A tip like "Cagliari to beat Como" at 35% probability is terrible even with edge
+      // Good tips = high probability + positive edge
+      const scored = opps
+        .filter(o => {
+          const prob = o.aiProbability;
+          const edge = parseFloat(o.edge);
+          const odds = o.bookmakerOdds;
+          // Must have real odds
+          if (!odds || odds < 1.10) return false;
+          // Minimum probability thresholds by market type
+          if (o.market.includes("Home Win") || o.market.includes("Away Win")) return prob >= 45 && edge > -1;
+          if (o.market.includes("Draw")) return prob >= 28 && edge > -1;
+          if (o.market.includes("Double Chance") || o.market.includes("1X") || o.market.includes("X2") || o.market.includes("12")) return prob >= 55 && edge > -1;
+          if (o.market.includes("Over") || o.market.includes("Under")) return prob >= 40 && edge > -1;
+          if (o.market.includes("BTTS")) return prob >= 40 && edge > -1;
+          if (o.market.includes("Corner")) return prob >= 40 && edge > -1;
+          return prob >= 40 && edge > -1;
+        })
+        .map(o => {
+          // Score = weighted combo of probability and edge
+          // High prob + positive edge = great tip
+          const prob = o.aiProbability;
+          const edge = parseFloat(o.edge);
+          const score = (prob * 0.6) + (edge * 8) + (o.isValue ? 5 : 0);
+          return { ...o, _tipScore: score };
+        })
+        .sort((a, b) => b._tipScore - a._tipScore);
 
       // Pick the best 8, ensuring no duplicate matches
       const picked = [];
       const usedMatches = new Set();
-      for (const bet of candidates) {
+      for (const bet of scored) {
         if (picked.length >= 8) break;
         const matchKey = `${bet.home}-${bet.away}`;
         if (usedMatches.has(matchKey)) continue;
@@ -251,7 +275,7 @@ export default function TipsPage() {
         <div className="tips-list">
           {tips.map((tip, i) => {
             const edge = parseFloat(tip.edge);
-            const conf = getConfidence(edge);
+            const conf = getConfidence(edge, tip.aiProbability);
             const reasoning = generateReasoning(tip);
             const isExpanded = expandedTip === tip.id;
 
