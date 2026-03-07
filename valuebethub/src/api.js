@@ -560,21 +560,55 @@ export function buildSlip(opportunities, numSelections, riskLevel, targetOdds, t
     aggressive:   { min: Math.max(1.10, targetPerLeg * 0.4), max: targetPerLeg * 2.0 },
   }[riskLevel];
 
-  const scored = opportunities.map(opp => {
-    const odds = opp.bookmakerOdds;
-    const edge = parseFloat(opp.edge);
-    const oddsFit = Math.abs(Math.log(odds) - Math.log(targetPerLeg));
-    const inRange = odds >= tolerance.min && odds <= tolerance.max;
+  // ─── STEP 1: Filter out terrible bets ──────────────────────────────
+  // No matter the edge, we never recommend bets below these probability floors
+  const minProb = {
+    conservative: { match: 50, draw: 28, doubleChance: 60, goals: 45, btts: 45, corners: 45 },
+    balanced:     { match: 42, draw: 25, doubleChance: 52, goals: 38, btts: 38, corners: 38 },
+    aggressive:   { match: 33, draw: 22, doubleChance: 42, goals: 30, btts: 30, corners: 30 },
+  }[riskLevel];
 
-    let score = inRange ? 10 : 0;
-    score -= oddsFit * 5;
-    score += edge * 2;
-    if (opp.isValue) score += 3;
-    if (riskLevel === "conservative") score += opp.aiProbability * 0.05;
-    if (riskLevel === "aggressive") score += edge * 1.5;
+  const passesMinProb = (opp) => {
+    const prob = opp.aiProbability;
+    const m = opp.market;
+    if (m.includes("Home Win") || m.includes("Away Win")) return prob >= minProb.match;
+    if (m.includes("Draw")) return prob >= minProb.draw;
+    if (m.includes("1X") || m.includes("X2") || m.includes("12") || m.includes("Double")) return prob >= minProb.doubleChance;
+    if (m.includes("Over") || m.includes("Under")) return prob >= minProb.goals;
+    if (m.includes("BTTS")) return prob >= minProb.btts;
+    if (m.includes("Corner")) return prob >= minProb.corners;
+    return prob >= minProb.match;
+  };
 
-    return { ...opp, _score: score };
-  });
+  // ─── STEP 2: Score by BOTH probability and edge ────────────────────
+  // A 65% prob bet with +1% edge >> a 35% bet with +3% edge
+  const scored = opportunities
+    .filter(opp => opp.bookmakerOdds >= 1.05 && passesMinProb(opp))
+    .map(opp => {
+      const odds = opp.bookmakerOdds;
+      const edge = parseFloat(opp.edge);
+      const prob = opp.aiProbability;
+      const oddsFit = Math.abs(Math.log(odds) - Math.log(targetPerLeg));
+      const inRange = odds >= tolerance.min && odds <= tolerance.max;
+
+      // Probability is now the primary factor in ALL modes
+      let score = inRange ? 10 : 0;
+      score -= oddsFit * 4;
+      score += prob * 0.15;              // Probability always matters
+      score += edge * 3;                 // Edge matters too
+      if (opp.isValue) score += 4;       // Value bet bonus
+
+      // Risk-level adjustments
+      if (riskLevel === "conservative") {
+        score += prob * 0.10;            // Extra probability weight
+        if (prob >= 60) score += 3;      // Bonus for very likely bets
+      }
+      if (riskLevel === "aggressive") {
+        score += edge * 2;               // Extra edge weight
+      }
+
+      return { ...opp, _score: score };
+    });
 
   scored.sort((a, b) => b._score - a._score);
 
@@ -604,7 +638,7 @@ export function buildSlip(opportunities, numSelections, riskLevel, targetOdds, t
     currentCombinedOdds = wouldBe;
   }
 
-  // Fill remaining if needed
+  // Fill remaining if needed (still respects probability minimums)
   if (selected.length < numSelections) {
     for (const opp of scored) {
       if (selected.length >= numSelections) break;
