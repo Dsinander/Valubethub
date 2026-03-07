@@ -1,6 +1,6 @@
 // netlify/functions/get-data.mjs
 // Fetches real match data from API-Football, transforms it for our app.
-// Cached at Netlify's CDN edge for 6 hours to save API requests.
+// Cached at Netlify's CDN edge for 12 hours to save API requests.
 
 const API_BASE = "https://v3.football.api-sports.io";
 
@@ -54,6 +54,16 @@ const LEAGUE_FLAGS = {
 let cache = { data: null, timestamp: 0 };
 const CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours
 
+// ─── FIX: Timeout wrapper ──────────────────────────────────────────────
+// Prevents any single API call from hanging the entire function.
+// Netlify free tier has a 10s timeout — every call MUST finish fast.
+function withTimeout(promise, ms = 5000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms)),
+  ]);
+}
+
 async function apiFetch(endpoint) {
   const res = await fetch(`${API_BASE}${endpoint}`, {
     headers: {
@@ -65,38 +75,48 @@ async function apiFetch(endpoint) {
   return json.response || [];
 }
 
-// Get today's date in API format
+// Get date string in API format
 function getDateStr(offsetDays = 0) {
   const d = new Date();
   d.setDate(d.getDate() + offsetDays);
   return d.toISOString().split("T")[0];
 }
 
-// Fetch fixtures — 3 days, fast and reliable
+// ═══════════════════════════════════════════════════════════════════════
+// FIX #1: Fetch ALL days in PARALLEL (was serial — 3 round trips)
+// FIX #2: Fetch 7 days to match the frontend "Next 7 Days" filter
+//         (was only 3 days — "Weekend" and "Next 7 Days" showed empty)
+// ═══════════════════════════════════════════════════════════════════════
 async function fetchFixtures() {
-  const allFixtures = [];
   const debugLog = [];
-  
-  // Fetch 3 days only (3 API calls — fast)
-  for (let i = 0; i < 3; i++) {
+  const days = 7;
+
+  // Fire all day-fetches simultaneously instead of one-by-one
+  const dayPromises = [];
+  for (let i = 0; i < days; i++) {
     const dateStr = getDateStr(i);
-    try {
-      const dayFixtures = await apiFetch(`/fixtures?date=${dateStr}`);
-      debugLog.push(`Day ${dateStr}: ${dayFixtures.length} total fixtures`);
-      allFixtures.push(...dayFixtures);
-    } catch (e) {
-      debugLog.push(`Day ${dateStr}: FAILED - ${e.message}`);
-    }
+    dayPromises.push(
+      withTimeout(apiFetch(`/fixtures?date=${dateStr}`), 8000)
+        .then(fixtures => {
+          debugLog.push(`${dateStr}: ${fixtures.length} fixtures`);
+          return fixtures;
+        })
+        .catch(e => {
+          debugLog.push(`${dateStr}: FAILED - ${e.message}`);
+          return []; // One failed day won't kill everything
+        })
+    );
   }
 
+  // All days resolve at once (~1 round trip time instead of 7)
+  const results = await Promise.all(dayPromises);
+  const allFixtures = results.flat();
+
   console.log("Fetch debug:", debugLog.join(" | "));
-  console.log("Supported league IDs:", Object.keys(LEAGUE_IDS).join(", "));
-  
-  // Log what league IDs are in the response
+
   const foundLeagueIds = [...new Set(allFixtures.map(f => f.league?.id))];
-  console.log("League IDs found in API response:", foundLeagueIds.join(", "));
-  
-  // Log how many match each supported league
+  console.log("League IDs found:", foundLeagueIds.join(", "));
+
   const matchingFixtures = allFixtures.filter(f => LEAGUE_IDS[f.league?.id]);
   console.log(`Matching supported leagues: ${matchingFixtures.length} of ${allFixtures.length}`);
 
@@ -106,7 +126,7 @@ async function fetchFixtures() {
     const status = f.fixture?.status?.short;
     return LEAGUE_IDS[leagueId] && ["NS", "TBD", "PST"].includes(status);
   });
-  
+
   console.log(`After status filter (NS/TBD/PST): ${supported.length} fixtures`);
 
   // Remove duplicates
@@ -119,10 +139,10 @@ async function fetchFixtures() {
   });
 }
 
-// Fetch predictions for a fixture (includes form, H2H, comparison)
+// Fetch predictions for a fixture
 async function fetchPrediction(fixtureId) {
   try {
-    const data = await apiFetch(`/predictions?fixture=${fixtureId}`);
+    const data = await withTimeout(apiFetch(`/predictions?fixture=${fixtureId}`), 5000);
     return data[0] || null;
   } catch {
     return null;
@@ -132,7 +152,7 @@ async function fetchPrediction(fixtureId) {
 // Fetch injuries for a fixture
 async function fetchInjuries(fixtureId) {
   try {
-    return await apiFetch(`/injuries?fixture=${fixtureId}`);
+    return await withTimeout(apiFetch(`/injuries?fixture=${fixtureId}`), 5000);
   } catch {
     return [];
   }
@@ -141,7 +161,7 @@ async function fetchInjuries(fixtureId) {
 // Fetch odds for a fixture
 async function fetchOdds(fixtureId) {
   try {
-    const data = await apiFetch(`/odds?fixture=${fixtureId}`);
+    const data = await withTimeout(apiFetch(`/odds?fixture=${fixtureId}`), 5000);
     return data[0]?.bookmakers || [];
   } catch {
     return [];
@@ -191,7 +211,7 @@ function transformFixture(fixture, prediction, injuries, odds) {
   const homeLStats = prediction?.teams?.home?.league || {};
   const awayLStats = prediction?.teams?.away?.league || {};
 
-  // Parse home/away records from fixtures data
+  // Parse home/away records
   const homeRecord = {
     w: homeLStats.fixtures?.wins?.home ?? 0,
     d: homeLStats.fixtures?.draws?.home ?? 0,
@@ -215,7 +235,6 @@ function transformFixture(fixture, prediction, injuries, odds) {
         const oddVal = parseFloat(val.odd);
         if (isNaN(oddVal)) return;
 
-        // Map bookie market names to our market names
         if (bet.name === "Match Winner") {
           if (val.value === "Home") parsedOdds["Home Win"] = oddVal;
           if (val.value === "Draw") parsedOdds["Draw"] = oddVal;
@@ -254,7 +273,7 @@ function transformFixture(fixture, prediction, injuries, odds) {
     .map(inj => ({
       player: inj.player?.name || "Unknown",
       position: inj.player?.type || "N/A",
-      importance: "starter", // API doesn't always give this
+      importance: "starter",
       status: inj.player?.reason?.toLowerCase()?.includes("doubtful") ? "doubtful" : "out",
       returnDate: inj.player?.reason || "Unknown",
     }));
@@ -288,7 +307,6 @@ function transformFixture(fixture, prediction, injuries, odds) {
     date: kickoff.toISOString().split("T")[0],
     sport: "football",
 
-    // Prediction data
     prediction: {
       homeWinPct: predHome,
       drawPct: predDraw,
@@ -297,11 +315,9 @@ function transformFixture(fixture, prediction, injuries, odds) {
       winner: prediction?.predictions?.winner?.name || "",
     },
 
-    // Form
     homeForm,
     awayForm,
 
-    // H2H
     h2h: {
       last5: h2hMatches,
       homeWins: h2hHomeWins,
@@ -310,21 +326,16 @@ function transformFixture(fixture, prediction, injuries, odds) {
       avgGoals: h2hAvgGoals,
     },
 
-    // Records
     homeRecord,
     awayRecord,
 
-    // Comparison (from API predictions)
     comparison: comp,
 
-    // Injuries
     homeInjuries,
     awayInjuries,
 
-    // Real bookmaker odds
     odds: parsedOdds,
 
-    // Team league positions
     homeLeaguePos: homeLStats.fixtures?.played?.total
       ? Math.max(1, Math.round(20 * (1 - (homeLStats.fixtures?.wins?.total || 0) / (homeLStats.fixtures?.played?.total || 1))))
       : null,
@@ -332,7 +343,6 @@ function transformFixture(fixture, prediction, injuries, odds) {
       ? Math.max(1, Math.round(20 * (1 - (awayLStats.fixtures?.wins?.total || 0) / (awayLStats.fixtures?.played?.total || 1))))
       : null,
 
-    // xG approximation from goals data
     homeXGFor: homeLStats.goals?.for?.average?.total ? parseFloat(homeLStats.goals.for.average.total) : 1.3,
     homeXGAgainst: homeLStats.goals?.against?.average?.total ? parseFloat(homeLStats.goals.against.average.total) : 1.1,
     awayXGFor: awayLStats.goals?.for?.average?.total ? parseFloat(awayLStats.goals.for.average.total) : 1.2,
@@ -341,11 +351,9 @@ function transformFixture(fixture, prediction, injuries, odds) {
 }
 
 export default async (req) => {
-  // CORS headers
   const headers = {
     "Access-Control-Allow-Origin": "*",
     "Content-Type": "application/json",
-    // Cache at Netlify CDN edge for 12 hours
     "Cache-Control": "public, s-maxage=43200, max-age=3600",
     "Netlify-CDN-Cache-Control": "public, s-maxage=43200",
   };
@@ -366,39 +374,43 @@ export default async (req) => {
   }
 
   try {
-    // 1. Fetch upcoming fixtures from all supported leagues
+    // 1. Fetch upcoming fixtures (all 7 days fire in parallel)
     const rawFixtures = await fetchFixtures();
-    // API budget: 3 calls (one per day)
 
     // Sort by date (closest first) for enrichment priority
     rawFixtures.sort((a, b) => new Date(a.fixture.date) - new Date(b.fixture.date));
 
-    // 2. Enrich closest fixtures with predictions + odds (2 calls each, in parallel)
-    // Total: 3 (days) + 12 (6 fixtures × 2) = 15 calls. Fast and safe.
+    // 2. Enrich closest fixtures with predictions + odds
     const enrichLimit = Math.min(6, rawFixtures.length);
     const toEnrich = rawFixtures.slice(0, enrichLimit);
     const basicOnly = rawFixtures.slice(enrichLimit);
 
-    const enrichedFixtures = [];
-    for (const fixture of toEnrich) {
-      const fixtureId = fixture.fixture.id;
-      try {
-        const [prediction, oddsData] = await Promise.all([
-          fetchPrediction(fixtureId),
-          fetchOdds(fixtureId),
-        ]);
-        enrichedFixtures.push(transformFixture(fixture, prediction, [], oddsData));
-      } catch (e) {
-        enrichedFixtures.push(transformFixture(fixture, null, [], []));
-      }
-    }
+    // ═══════════════════════════════════════════════════════════════════
+    // FIX #3: Enrich ALL fixtures in PARALLEL (was serial for-loop)
+    // Old: 6 sequential batches × ~1-2s each = 6-12s (TIMEOUT!)
+    // New: all 12 calls fire at once = ~1-2s total
+    // ═══════════════════════════════════════════════════════════════════
+    const enrichedFixtures = await Promise.all(
+      toEnrich.map(async (fixture) => {
+        const fixtureId = fixture.fixture.id;
+        try {
+          const [prediction, oddsData] = await Promise.all([
+            fetchPrediction(fixtureId),
+            fetchOdds(fixtureId),
+          ]);
+          return transformFixture(fixture, prediction, [], oddsData);
+        } catch (e) {
+          return transformFixture(fixture, null, [], []);
+        }
+      })
+    );
 
-    // Basic fixtures (no predictions/odds — appear in picker but can't generate bets)
+    // Basic fixtures (no predictions/odds — appear in picker)
     const basicFixtures = basicOnly.map(fixture => transformFixture(fixture, null, [], []));
 
     const allFixtures = [...enrichedFixtures, ...basicFixtures];
 
-    // NEVER cache empty results — something went wrong, try again next time
+    // NEVER cache empty results
     if (allFixtures.length > 0) {
       cache = { data: allFixtures, timestamp: now };
     }
@@ -412,11 +424,13 @@ export default async (req) => {
         rawCount: rawFixtures.length,
         enrichedCount: enrichedFixtures.length,
         basicCount: basicFixtures.length,
-        datesFetched: [getDateStr(0), getDateStr(1), getDateStr(2)],
+        datesFetched: Array.from({ length: 7 }, (_, i) => getDateStr(i)),
       },
     }), { headers });
 
   } catch (error) {
+    console.error("get-data top-level error:", error);
+
     // If API fails but we have stale cache, serve it
     if (cache.data) {
       return new Response(JSON.stringify({
