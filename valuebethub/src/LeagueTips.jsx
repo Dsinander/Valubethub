@@ -22,9 +22,10 @@ const LEAGUE_META = {
 };
 
 function getConfidence(edge) {
-  if (edge > 3.5) return { label: "High Confidence", color: "var(--green-400)", bg: "rgba(34,197,94,0.12)", border: "rgba(34,197,94,0.25)" };
-  if (edge > 1.5) return { label: "Medium Confidence", color: "var(--gold-400)", bg: "rgba(212,175,55,0.12)", border: "rgba(212,175,55,0.25)" };
-  return { label: "Speculative", color: "var(--orange-500)", bg: "rgba(245,158,11,0.12)", border: "rgba(245,158,11,0.25)" };
+  if (edge > 3) return { label: "High Confidence", color: "var(--green-400)", bg: "rgba(34,197,94,0.12)", border: "rgba(34,197,94,0.25)" };
+  if (edge > 1) return { label: "Medium Confidence", color: "var(--gold-400)", bg: "rgba(212,175,55,0.12)", border: "rgba(212,175,55,0.25)" };
+  if (edge > 0) return { label: "Slight Edge", color: "var(--blue-500)", bg: "rgba(59,130,246,0.12)", border: "rgba(59,130,246,0.25)" };
+  return { label: "AI Pick", color: "var(--text-muted)", bg: "rgba(148,163,184,0.1)", border: "rgba(148,163,184,0.2)" };
 }
 
 export default function LeagueTipsPage({ onMatchPreview }) {
@@ -42,10 +43,13 @@ export default function LeagueTipsPage({ onMatchPreview }) {
         // Generate tips per league
         const allMarkets = new Set(Object.values(MARKET_CATEGORIES).flatMap(c => c.markets));
         const opps = generateOpportunities(result.fixtures, allMarkets);
-        const valueBets = opps.filter(o => o.isValue && parseFloat(o.edge) > 0.3 && o.bookmakerOdds >= 1.20 && o.bookmakerOdds <= 5.0);
+        // Sort all opportunities by edge — show best per league
+        const sortedOpps = opps
+          .filter(o => o.bookmakerOdds >= 1.15 && o.bookmakerOdds <= 6.0 && parseFloat(o.edge) > -2)
+          .sort((a, b) => parseFloat(b.edge) - parseFloat(a.edge));
 
         const byLeague = {};
-        for (const bet of valueBets) {
+        for (const bet of sortedOpps) {
           if (!byLeague[bet.league]) byLeague[bet.league] = [];
           // Max 1 bet per match per league
           const matchKey = `${bet.home}-${bet.away}`;
