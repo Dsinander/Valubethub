@@ -2,6 +2,9 @@ import { useState, useCallback, useEffect } from "react";
 import { fetchMatchData, generateOpportunities, buildSlip, MARKET_CATEGORIES } from "./api.js";
 import { AboutPage, PrivacyPage, TermsPage, ResponsibleGamblingPage, AffiliateDisclosurePage, HowItWorksPage, BankrollManagementPage, BettingStrategyPage, PAGE_CSS } from "./Pages.jsx";
 import TipsPage from "./TipsPage.jsx";
+import { AuthModal, UserMenu, AUTH_CSS } from "./Auth.jsx";
+import { DashboardPage, UpgradePage, SettingsPage } from "./Dashboard.jsx";
+import { supabase, getProfile, signOut, saveSlip, canSaveSlip } from "./supabase.js";
 
 // ═══════════════════════════════════════════════════════════════════════
 // STYLES
@@ -71,7 +74,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--navy-950);color:var(--tex
 .conf-bar{height:6px;background:var(--navy-700);border-radius:6px;overflow:hidden;margin-top:6px}
 .conf-fill{height:100%;border-radius:6px;transition:width .5s}
 .action-buttons{display:flex;gap:10px;flex-wrap:wrap}
-.action-btn{flex:1;min-width:140px;padding:12px 16px;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px}
+.action-btn{flex:1;min-width:120px;padding:12px 16px;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px}
 .action-primary{background:linear-gradient(135deg,var(--gold-500),var(--gold-300));color:var(--navy-950);border:none}
 .action-secondary{background:var(--navy-800);color:var(--text-primary);border:1px solid var(--navy-600)}
 .ev-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600}
@@ -115,7 +118,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--navy-950);color:var(--tex
 @keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:640px){.inner{padding:12px 12px 40px}.card{padding:18px 14px}.summary-grid{grid-template-columns:1fr 1fr}.sel-header{flex-direction:column}}
 ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--navy-900)}::-webkit-scrollbar-thumb{background:var(--navy-600);border-radius:3px}
-.nav-tabs{display:flex;justify-content:center;gap:4px;margin-bottom:20px}
+.nav-tabs{display:flex;justify-content:center;gap:4px;margin-bottom:20px;flex-wrap:wrap}
 .nav-tab{padding:10px 20px;border-radius:10px;border:1px solid var(--navy-600);background:var(--navy-800);color:var(--text-secondary);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:6px}
 .nav-tab:hover{border-color:var(--navy-400);color:var(--text-primary)}
 .nav-tab.active{border-color:var(--gold-500);background:rgba(212,175,55,0.1);color:var(--gold-400)}
@@ -127,7 +130,6 @@ function AnalysisBreakdown({ sel }) {
   if (!a) return null;
   return (
     <div className="analysis-box">
-      {/* Form */}
       {(a.homeRecentForm?.length > 0 || a.awayRecentForm?.length > 0) && (
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Recent Form</div>
@@ -143,7 +145,6 @@ function AnalysisBreakdown({ sel }) {
           </div>
         </div>
       )}
-      {/* H2H */}
       {a.h2hData?.last5?.length > 0 && (
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Head to Head</div>
@@ -155,7 +156,6 @@ function AnalysisBreakdown({ sel }) {
           {a.h2hData.last5.slice(0, 3).map((m, i) => <div key={i} className="h2h-row">{m.home} {m.score} {m.away} ({m.date})</div>)}
         </div>
       )}
-      {/* xG */}
       <div style={{ marginBottom: 12 }}>
         <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Goals Average</div>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
@@ -163,7 +163,6 @@ function AnalysisBreakdown({ sel }) {
           <div><span style={{ color: "var(--text-secondary)" }}>{sel.away}: </span><span style={{ color: "var(--green-400)", fontFamily: "'JetBrains Mono',monospace" }}>{a.awayXGFor} for</span> / <span style={{ color: "var(--red-400)", fontFamily: "'JetBrains Mono',monospace" }}>{a.awayXGAgainst} against</span></div>
         </div>
       </div>
-      {/* Injuries */}
       {(a.homeInjuries?.length > 0 || a.awayInjuries?.length > 0) && (
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Injuries</div>
@@ -171,39 +170,21 @@ function AnalysisBreakdown({ sel }) {
           {a.awayInjuries?.map((inj, i) => <div key={`ai${i}`} className="inj-item">{inj.status === 'out' ? '🔴' : '🟡'} {sel.away} — {inj.player} — {inj.status} ({inj.returnDate})</div>)}
         </div>
       )}
-      {/* Context Insights — AI Reasoning */}
       {a.contextInsights?.length > 0 && (
         <div style={{ marginTop: 12 }}>
-          <div style={{ fontSize: 11, color: "var(--gold-500)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 600 }}>
-            🧠 AI Reasoning
-          </div>
+          <div style={{ fontSize: 11, color: "var(--gold-500)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 600 }}>🧠 AI Reasoning</div>
           {a.contextInsights.map((insight, i) => {
-            const bgColor =
-              insight.impact?.includes("positive") ? "rgba(34,197,94,0.06)" :
-              insight.impact?.includes("negative") ? "rgba(239,68,68,0.06)" :
-              insight.impact?.includes("high_scoring") ? "rgba(245,158,11,0.06)" :
-              insight.impact?.includes("low_scoring") ? "rgba(59,130,246,0.06)" :
-              "rgba(148,163,184,0.06)";
-            const borderColor =
-              insight.impact?.includes("positive") ? "rgba(34,197,94,0.12)" :
-              insight.impact?.includes("negative") ? "rgba(239,68,68,0.12)" :
-              insight.impact?.includes("high_scoring") ? "rgba(245,158,11,0.12)" :
-              insight.impact?.includes("low_scoring") ? "rgba(59,130,246,0.12)" :
-              "rgba(148,163,184,0.12)";
+            const bgColor = insight.impact?.includes("positive") ? "rgba(34,197,94,0.06)" : insight.impact?.includes("negative") ? "rgba(239,68,68,0.06)" : insight.impact?.includes("high_scoring") ? "rgba(245,158,11,0.06)" : insight.impact?.includes("low_scoring") ? "rgba(59,130,246,0.06)" : "rgba(148,163,184,0.06)";
+            const borderColor = insight.impact?.includes("positive") ? "rgba(34,197,94,0.12)" : insight.impact?.includes("negative") ? "rgba(239,68,68,0.12)" : insight.impact?.includes("high_scoring") ? "rgba(245,158,11,0.12)" : insight.impact?.includes("low_scoring") ? "rgba(59,130,246,0.12)" : "rgba(148,163,184,0.12)";
             return (
               <div key={i} style={{ padding: "8px 10px", borderRadius: 8, background: bgColor, border: `1px solid ${borderColor}`, marginBottom: 6 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)", marginBottom: 2 }}>
-                  {insight.icon} {insight.title}
-                </div>
-                <div style={{ fontSize: 12, lineHeight: 1.5, color: "var(--text-secondary)" }}>
-                  {insight.detail}
-                </div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)", marginBottom: 2 }}>{insight.icon} {insight.title}</div>
+                <div style={{ fontSize: 12, lineHeight: 1.5, color: "var(--text-secondary)" }}>{insight.detail}</div>
               </div>
             );
           })}
         </div>
       )}
-      {/* API Prediction */}
       {a.prediction?.advice && (
         <div style={{ marginTop: 10, fontSize: 12, padding: "8px 10px", borderRadius: 6, background: "rgba(212,175,55,0.06)", border: "1px solid rgba(212,175,55,0.1)" }}>
           <span style={{ color: "var(--gold-400)", fontWeight: 600 }}>Model Summary:</span>{" "}
@@ -232,15 +213,21 @@ export default function App() {
   const [selectedFixtures, setSelectedFixtures] = useState([]);
   const [expandLeagues, setExpandLeagues] = useState({});
   const [selectedMarketTypes, setSelectedMarketTypes] = useState(() => Object.keys(MARKET_CATEGORIES));
-  const [timeRange, setTimeRange] = useState("all"); // "today", "tomorrow", "weekend", "all"
+  const [timeRange, setTimeRange] = useState("all");
 
   // App state
   const [phase, setPhase] = useState("input");
-  const [currentPage, setCurrentPage] = useState(null); // null = main app, "tips", "about", etc.
+  const [currentPage, setCurrentPage] = useState(null);
   const [loadProgress, setLoadProgress] = useState(0);
   const [loadStage, setLoadStage] = useState(0);
   const [slip, setSlip] = useState(null);
   const [expandedCards, setExpandedCards] = useState({});
+
+  // Auth state
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [showAuth, setShowAuth] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(null);
 
   // Fetch real data on mount
   useEffect(() => {
@@ -259,23 +246,44 @@ export default function App() {
     loadData();
   }, []);
 
+  // Auth listener
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser(session.user);
+        getProfile(session.user.id).then(p => setProfile(p));
+      }
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session?.user) {
+          setUser(session.user);
+          const p = await getProfile(session.user.id);
+          setProfile(p);
+        } else {
+          setUser(null);
+          setProfile(null);
+        }
+      }
+    );
+    return () => subscription.unsubscribe();
+  }, []);
+
   // Time range filtering
   const filterByTimeRange = (fixtureList) => {
     if (timeRange === "all") return fixtureList;
     const now = new Date();
     const todayStr = now.toISOString().split("T")[0];
     const tomorrowStr = new Date(now.getTime() + 86400000).toISOString().split("T")[0];
-    const dayOfWeek = now.getDay(); // 0=Sun, 6=Sat
-
+    const dayOfWeek = now.getDay();
     return fixtureList.filter(f => {
       const fDate = f.date;
       if (timeRange === "today") return fDate === todayStr;
       if (timeRange === "tomorrow") return fDate === tomorrowStr;
       if (timeRange === "weekend") {
-        // Find this weekend: Saturday and Sunday
         const daysUntilSat = (6 - dayOfWeek + 7) % 7 || 7;
         const sat = new Date(now.getTime() + daysUntilSat * 86400000);
-        // If today is Saturday or Sunday, include today
         if (dayOfWeek === 0 || dayOfWeek === 6) {
           const satStr = dayOfWeek === 6 ? todayStr : new Date(now.getTime() - 86400000).toISOString().split("T")[0];
           const sunStr = dayOfWeek === 0 ? todayStr : tomorrowStr;
@@ -292,7 +300,6 @@ export default function App() {
 
   const visibleFixtures = filterByTimeRange(fixtures);
 
-  // Auto-select all visible fixtures when time range changes
   useEffect(() => {
     const indices = [];
     visibleFixtures.forEach(vf => {
@@ -302,7 +309,6 @@ export default function App() {
     setSelectedFixtures(indices);
   }, [timeRange, fixtures.length]);
 
-  // Derived — use visibleFixtures for the picker
   const leagues = [...new Set(visibleFixtures.map(f => f.league))];
   const fixturesByLeague = {};
   leagues.forEach(l => {
@@ -336,11 +342,11 @@ export default function App() {
     setLoadProgress(0);
     setLoadStage(0);
     setExpandedCards({});
+    setSaveStatus(null);
     const n = parseInt(numSelections);
     const targetOdds = (parseFloat(targetWinnings) || 500) / (parseFloat(stake) || 100);
     const filteredFixtures = fixtures.filter((_, i) => selectedFixtures.includes(i));
     const allowedMarkets = new Set(selectedMarketTypes.flatMap(key => MARKET_CATEGORIES[key]?.markets || []));
-
     let step = 0;
     const interval = setInterval(() => {
       step++;
@@ -356,6 +362,17 @@ export default function App() {
     }, 100);
   }, [numSelections, riskLevel, targetWinnings, stake, selectedFixtures, selectedMarketTypes, fixtures]);
 
+  // Save slip handler
+  const handleSaveSlip = async () => {
+    if (!user || !slip) return;
+    setSaveStatus("saving");
+    const allowed = await canSaveSlip(user.id, profile?.tier);
+    if (!allowed) { setSaveStatus("limit"); return; }
+    const { error } = await saveSlip(user.id, slip, { stake, targetWinnings, riskLevel });
+    setSaveStatus(error ? "error" : "saved");
+    setTimeout(() => setSaveStatus(null), 3000);
+  };
+
   const stakeNum = parseFloat(stake) || 0;
   const potentialReturn = slip ? +(stakeNum * slip.combinedOdds).toFixed(2) : 0;
   const profit = slip ? +(potentialReturn - stakeNum).toFixed(2) : 0;
@@ -364,15 +381,28 @@ export default function App() {
   const evLabel = slip ? (slip.avgEdge > 3 ? "STRONG" : slip.avgEdge > 1.5 ? "GOOD" : slip.avgEdge > 0 ? "MARGINAL" : "NEGATIVE") : "";
   const evClass = slip ? (slip.avgEdge > 3 ? "ev-strong" : slip.avgEdge > 1.5 ? "ev-good" : slip.avgEdge > 0 ? "ev-marginal" : "ev-negative") : "";
 
-  // Helper: navigate to page
   const goTo = (page) => { setCurrentPage(page); window.scrollTo(0, 0); };
 
   return (
     <>
-      <style>{CSS}{PAGE_CSS}</style>
+      <style>{CSS}{PAGE_CSS}{AUTH_CSS}</style>
       <div className="app">
         <div className="inner">
+          {/* ── HEADER WITH AUTH ──────── */}
           <div className="header">
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+              {user && profile ? (
+                <UserMenu
+                  profile={profile}
+                  onNavigate={goTo}
+                  onSignOut={async () => { await signOut(); setUser(null); setProfile(null); goTo(null); }}
+                />
+              ) : (
+                <button onClick={() => setShowAuth(true)} style={{ padding: "7px 16px", borderRadius: 10, border: "1px solid var(--gold-500)", background: "rgba(212,175,55,0.1)", color: "var(--gold-400)", fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }}>
+                  Sign In
+                </button>
+              )}
+            </div>
             <div className="brand" style={{ cursor: "pointer" }} onClick={() => goTo(null)}>
               <div className="brand-icon">V</div>
               <div className="brand-name">Value<span>Bet</span>Hub</div>
@@ -382,25 +412,21 @@ export default function App() {
 
           {/* ── NAVIGATION TABS ─────── */}
           <div className="nav-tabs">
-            <button
-              className={`nav-tab ${currentPage === null ? "active" : ""}`}
-              onClick={() => goTo(null)}
-            >
-              ⚙️ Generator
-            </button>
-            <button
-              className={`nav-tab ${currentPage === "tips" ? "active" : ""}`}
-              onClick={() => goTo("tips")}
-            >
-              🎯 Today's Tips
-            </button>
+            <button className={`nav-tab ${currentPage === null ? "active" : ""}`} onClick={() => goTo(null)}>⚙️ Generator</button>
+            <button className={`nav-tab ${currentPage === "tips" ? "active" : ""}`} onClick={() => goTo("tips")}>🎯 Today's Tips</button>
+            {user && <button className={`nav-tab ${currentPage === "dashboard" ? "active" : ""}`} onClick={() => goTo("dashboard")}>📊 My Slips</button>}
           </div>
 
-          {/* ── TODAY'S TIPS PAGE ─────── */}
+          {/* ── TODAY'S TIPS ──────────── */}
           {currentPage === "tips" && <TipsPage />}
 
+          {/* ── DASHBOARD / UPGRADE / SETTINGS ── */}
+          {currentPage === "dashboard" && user && <DashboardPage user={user} profile={profile} onNavigate={goTo} />}
+          {currentPage === "upgrade" && <UpgradePage profile={profile} />}
+          {currentPage === "settings" && <SettingsPage profile={profile} />}
+
           {/* ── STATIC PAGES ──────────── */}
-          {currentPage && currentPage !== "tips" && (
+          {currentPage && !["tips", "dashboard", "upgrade", "settings"].includes(currentPage) && (
             <>
               <button className="back-btn" onClick={() => goTo(null)}>← Back to Generator</button>
               {currentPage === "about" && <AboutPage />}
@@ -417,7 +443,6 @@ export default function App() {
           {/* ── MAIN APP ─────────────── */}
           {!currentPage && (
             <>
-          {/* Data loading state */}
           {dataLoading && (
             <div className="data-status"><div className="spinner" /><div style={{ fontSize: 16, fontWeight: 600 }}>Loading today's fixtures...</div><div style={{ fontSize: 13, marginTop: 8 }}>Fetching real match data, odds, form, and injuries</div></div>
           )}
@@ -430,14 +455,11 @@ export default function App() {
             </div>
           )}
 
-          {/* No fixtures found */}
           {!dataLoading && !dataError && fixtures.length === 0 && (
             <div className="card" style={{ textAlign: "center" }}>
               <div style={{ fontSize: 36, marginBottom: 12 }}>⚽</div>
               <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: "var(--text-primary)" }}>No fixtures loaded</div>
-              <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16, lineHeight: 1.6 }}>
-                The data server may still be warming up. This usually resolves within a minute on first load.
-              </div>
+              <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16, lineHeight: 1.6 }}>The data server may still be warming up. This usually resolves within a minute on first load.</div>
               <button className="gen-btn" style={{ maxWidth: 200, margin: "0 auto" }} onClick={() => window.location.reload()}>Reload</button>
             </div>
           )}
@@ -459,55 +481,27 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Bet Types */}
               <div className="card">
                 <div className="card-title">Bet Types <span className="badge">{selectedMarketTypes.length}/{Object.keys(MARKET_CATEGORIES).length}</span></div>
                 <div className="market-types-grid">
                   {Object.entries(MARKET_CATEGORIES).map(([key, cat]) => (
-                    <button key={key} className={`market-type-btn ${selectedMarketTypes.includes(key) ? "active" : ""}`} onClick={() => toggleMarketType(key)}>
-                      <span>{cat.icon}</span> {cat.label}
-                    </button>
+                    <button key={key} className={`market-type-btn ${selectedMarketTypes.includes(key) ? "active" : ""}`} onClick={() => toggleMarketType(key)}><span>{cat.icon}</span> {cat.label}</button>
                   ))}
                 </div>
               </div>
 
-              {/* Fixture Picker */}
               <div className="card">
                 <div className="card-title">Fixtures <span className="badge">{selectedFixtures.length}/{visibleFixtures.length}</span></div>
-                {/* Time Range Filter */}
                 <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
-                  {[
-                    { key: "today", label: "Today" },
-                    { key: "tomorrow", label: "Tomorrow" },
-                    { key: "weekend", label: "Weekend" },
-                    { key: "all", label: "Next 7 Days" },
-                  ].map(t => (
-                    <button key={t.key}
-                      onClick={() => setTimeRange(t.key)}
-                      style={{
-                        padding: "7px 14px", borderRadius: 8, fontSize: 13, fontWeight: 500,
-                        fontFamily: "'DM Sans',sans-serif", cursor: "pointer", transition: "all 0.2s",
-                        border: timeRange === t.key ? "1px solid var(--gold-500)" : "1px solid var(--navy-600)",
-                        background: timeRange === t.key ? "rgba(212,175,55,0.12)" : "var(--navy-800)",
-                        color: timeRange === t.key ? "var(--gold-400)" : "var(--text-secondary)",
-                      }}>
-                      {t.label}
-                    </button>
+                  {[{ key: "today", label: "Today" }, { key: "tomorrow", label: "Tomorrow" }, { key: "weekend", label: "Weekend" }, { key: "all", label: "Next 7 Days" }].map(t => (
+                    <button key={t.key} onClick={() => setTimeRange(t.key)} style={{ padding: "7px 14px", borderRadius: 8, fontSize: 13, fontWeight: 500, fontFamily: "'DM Sans',sans-serif", cursor: "pointer", transition: "all 0.2s", border: timeRange === t.key ? "1px solid var(--gold-500)" : "1px solid var(--navy-600)", background: timeRange === t.key ? "rgba(212,175,55,0.12)" : "var(--navy-800)", color: timeRange === t.key ? "var(--gold-400)" : "var(--text-secondary)" }}>{t.label}</button>
                   ))}
                 </div>
                 <div className="picker-controls">
-                  <button className="picker-control-btn" onClick={() => {
-                    const indices = [];
-                    visibleFixtures.forEach(vf => { const idx = fixtures.findIndex(f => f.id === vf.id); if (idx >= 0) indices.push(idx); });
-                    setSelectedFixtures(indices);
-                  }}>Select All</button>
+                  <button className="picker-control-btn" onClick={() => { const indices = []; visibleFixtures.forEach(vf => { const idx = fixtures.findIndex(f => f.id === vf.id); if (idx >= 0) indices.push(idx); }); setSelectedFixtures(indices); }}>Select All</button>
                   <button className="picker-control-btn" onClick={() => setSelectedFixtures([])}>Clear</button>
                 </div>
-                {visibleFixtures.length === 0 && (
-                  <div style={{ textAlign: "center", padding: "20px 0", color: "var(--text-muted)", fontSize: 13 }}>
-                    No fixtures found for this time range. Try selecting a different period.
-                  </div>
-                )}
+                {visibleFixtures.length === 0 && <div style={{ textAlign: "center", padding: "20px 0", color: "var(--text-muted)", fontSize: 13 }}>No fixtures found for this time range. Try selecting a different period.</div>}
                 {leagues.map(league => {
                   const lf = fixturesByLeague[league];
                   const selCount = lf.filter(f => selectedFixtures.includes(f._idx)).length;
@@ -609,7 +603,32 @@ export default function App() {
                 <div className="action-buttons">
                   <button className="action-btn action-primary" onClick={handleGenerate}>🔄 New Slip</button>
                   <button className="action-btn action-secondary" onClick={() => { setPhase("input"); setSlip(null); }}>⚙️ Parameters</button>
+                  {/* ── SAVE SLIP BUTTON ──── */}
+                  {user ? (
+                    <button
+                      className="action-btn action-secondary"
+                      onClick={handleSaveSlip}
+                      disabled={saveStatus === "saving" || saveStatus === "saved"}
+                      style={saveStatus === "saved" ? { borderColor: "var(--green-500)", color: "var(--green-400)" } : {}}
+                    >
+                      {saveStatus === "saving" ? "💾 Saving..." :
+                       saveStatus === "saved" ? "✓ Saved!" :
+                       saveStatus === "limit" ? "🔒 Limit reached" :
+                       saveStatus === "error" ? "❌ Error" :
+                       "💾 Save Slip"}
+                    </button>
+                  ) : (
+                    <button className="action-btn action-secondary" onClick={() => setShowAuth(true)}>
+                      💾 Sign in to Save
+                    </button>
+                  )}
                 </div>
+                {saveStatus === "limit" && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 10, background: "rgba(212,175,55,0.06)", border: "1px solid rgba(212,175,55,0.15)", fontSize: 13, color: "var(--text-secondary)", marginTop: 12, cursor: "pointer", transition: "all 0.2s" }} onClick={() => goTo("upgrade")}>
+                    <span>You've reached the 5-slip limit on the Free plan.</span>
+                    <span style={{ color: "var(--gold-400)", fontWeight: 600 }}>Upgrade to Premium →</span>
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -638,6 +657,17 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      {/* ── AUTH MODAL ────────────── */}
+      {showAuth && (
+        <AuthModal
+          onClose={() => setShowAuth(false)}
+          onAuth={(session) => {
+            setUser(session.user);
+            getProfile(session.user.id).then(p => setProfile(p));
+          }}
+        />
+      )}
     </>
   );
 }
