@@ -51,13 +51,17 @@ export default function LeagueTipsPage({ onMatchPreview }) {
             const prob = o.aiProbability;
             const edge = parseFloat(o.edge);
             const odds = o.bookmakerOdds;
+            const m = o.market;
             if (!odds || odds < 1.10) return false;
-            if (o.market.includes("Home Win") || o.market.includes("Away Win")) return prob >= 45 && edge > -1;
-            if (o.market.includes("Draw")) return prob >= 28 && edge > -1;
-            if (o.market.includes("Double Chance") || o.market.includes("1X") || o.market.includes("X2") || o.market.includes("12")) return prob >= 55 && edge > -1;
-            if (o.market.includes("Over") || o.market.includes("Under")) return prob >= 40 && edge > -1;
-            if (o.market.includes("BTTS")) return prob >= 40 && edge > -1;
-            if (o.market.includes("Corner")) return prob >= 40 && edge > -1;
+            if (m.includes("&")) return prob >= 25 && edge > -1;
+            if (m.includes("Home Win") || m.includes("Away Win")) return prob >= 45 && edge > -1;
+            if (m.includes("Draw") && !m.includes("Draw No Bet")) return prob >= 28 && edge > -1;
+            if (m.includes("Double Chance") || m.includes("1X") || m.includes("X2") || m.includes("12")) return prob >= 55 && edge > -1;
+            if (m.includes("Over") || m.includes("Under")) return prob >= 40 && edge > -1;
+            if (m.includes("BTTS")) return prob >= 40 && edge > -1;
+            if (m.startsWith("AH")) return prob >= 38 && edge > -1;
+            if (m.includes("Draw No Bet")) return prob >= 45 && edge > -1;
+            if (m.includes("Corner")) return prob >= 40 && edge > -1;
             return prob >= 40 && edge > -1;
           })
           .map(o => {
