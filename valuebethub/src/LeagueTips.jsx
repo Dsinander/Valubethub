@@ -167,7 +167,7 @@ export default function LeagueTipsPage({ onMatchPreview }) {
                   <div key={tip.id} className="lt-tip" style={{ animationDelay: `${i * 0.06}s` }}>
                     <div className="lt-tip-top">
                       <div>
-                        <div className="lt-tip-match">{tip.home} vs {tip.away}</div>
+                        <div className="lt-tip-match">{tip.homeLogo && <img src={tip.homeLogo} style={{ width: 18, height: 18, objectFit: "contain", verticalAlign: "middle", marginRight: 5, borderRadius: 2 }} alt="" />}{tip.home} vs {tip.away}{tip.awayLogo && <img src={tip.awayLogo} style={{ width: 18, height: 18, objectFit: "contain", verticalAlign: "middle", marginLeft: 5, borderRadius: 2 }} alt="" />}</div>
                         <div className="lt-tip-meta">{tip.day} {tip.time} · {tip.leagueFlag} {tip.league}</div>
                       </div>
                       <div className="lt-tip-conf" style={{ background: conf.bg, border: `1px solid ${conf.border}`, color: conf.color }}>
