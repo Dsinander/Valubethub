@@ -60,6 +60,26 @@ export const MARKET_CATEGORIES = {
     icon: "🔄",
     markets: ["1X (Home or Draw)", "X2 (Draw or Away)", "12 (Home or Away)"],
   },
+  "COMBO_1X2_OU": {
+    label: "1X2 + Over/Under",
+    icon: "🔗",
+    markets: ["Home Win & Over 2.5", "Home Win & Under 2.5", "Draw & Over 2.5", "Draw & Under 2.5", "Away Win & Over 2.5", "Away Win & Under 2.5"],
+  },
+  "COMBO_1X2_BTTS": {
+    label: "1X2 + BTTS",
+    icon: "🔗",
+    markets: ["Home Win & BTTS Yes", "Home Win & BTTS No", "Draw & BTTS Yes", "Draw & BTTS No", "Away Win & BTTS Yes", "Away Win & BTTS No"],
+  },
+  "ASIAN_HANDICAP": {
+    label: "Asian Handicap",
+    icon: "📊",
+    markets: ["AH Home -0.5", "AH Away +0.5", "AH Home -1", "AH Away +1", "AH Home -1.5", "AH Away +1.5", "AH Home -2", "AH Away +2", "AH Home +0.5", "AH Away -0.5", "AH Home +1", "AH Away -1", "AH Home +1.5", "AH Away -1.5"],
+  },
+  "DRAW_NO_BET": {
+    label: "Draw No Bet",
+    icon: "🚫",
+    markets: ["Draw No Bet Home", "Draw No Bet Away"],
+  },
   "CORNERS": {
     label: "Corners",
     icon: "📐",
@@ -186,6 +206,90 @@ function calcMarketProb(fixture, market, bookmakerOdds) {
     case "Under 8.5 Corners":
     case "Under 10.5 Corners":
       adjustment = -(expectedGoals - 2.5) * 0.01;
+      break;
+    // ─── COMBO: 1X2 + Over/Under 2.5 ────────────────────────
+    case "Home Win & Over 2.5":
+      adjustment = formDiff * 0.03 + (expectedGoals - 2.5) * 0.012 + h2hHomeDominance * 0.015;
+      break;
+    case "Home Win & Under 2.5":
+      adjustment = formDiff * 0.03 - (expectedGoals - 2.5) * 0.012 + h2hHomeDominance * 0.01;
+      break;
+    case "Draw & Over 2.5":
+      adjustment = -Math.abs(formDiff) * 0.015 + (expectedGoals - 2.5) * 0.012;
+      break;
+    case "Draw & Under 2.5":
+      adjustment = -Math.abs(formDiff) * 0.015 - (expectedGoals - 2.5) * 0.012;
+      break;
+    case "Away Win & Over 2.5":
+      adjustment = -formDiff * 0.03 + (expectedGoals - 2.5) * 0.012 - h2hHomeDominance * 0.015;
+      break;
+    case "Away Win & Under 2.5":
+      adjustment = -formDiff * 0.03 - (expectedGoals - 2.5) * 0.012 - h2hHomeDominance * 0.01;
+      break;
+    // ─── COMBO: 1X2 + BTTS ──────────────────────────────────
+    case "Home Win & BTTS Yes": {
+      const bs1 = Math.min(fixture.homeXGFor || 1, fixture.awayXGFor || 1);
+      adjustment = formDiff * 0.03 + (bs1 - 1.0) * 0.015 + h2hHomeDominance * 0.01;
+      break;
+    }
+    case "Home Win & BTTS No": {
+      const ls1 = Math.min(fixture.homeXGFor || 1, fixture.awayXGFor || 1);
+      adjustment = formDiff * 0.03 - (ls1 - 1.0) * 0.015 + h2hHomeDominance * 0.01;
+      break;
+    }
+    case "Draw & BTTS Yes": {
+      const bs2 = Math.min(fixture.homeXGFor || 1, fixture.awayXGFor || 1);
+      adjustment = -Math.abs(formDiff) * 0.015 + (bs2 - 1.0) * 0.015;
+      break;
+    }
+    case "Draw & BTTS No":
+      adjustment = -Math.abs(formDiff) * 0.015;
+      break;
+    case "Away Win & BTTS Yes": {
+      const bs3 = Math.min(fixture.homeXGFor || 1, fixture.awayXGFor || 1);
+      adjustment = -formDiff * 0.03 + (bs3 - 1.0) * 0.015 - h2hHomeDominance * 0.01;
+      break;
+    }
+    case "Away Win & BTTS No": {
+      const ls3 = Math.min(fixture.homeXGFor || 1, fixture.awayXGFor || 1);
+      adjustment = -formDiff * 0.03 - (ls3 - 1.0) * 0.015 - h2hHomeDominance * 0.01;
+      break;
+    }
+    // ─── ASIAN HANDICAP ─────────────────────────────────────
+    case "AH Home -0.5":   // same as Home Win effectively
+    case "AH Away +0.5":
+      adjustment = formDiff * 0.04 + h2hHomeDominance * 0.02 + injuryDiff;
+      break;
+    case "AH Home -1":
+    case "AH Away +1":
+      adjustment = formDiff * 0.035 + h2hHomeDominance * 0.02 + injuryDiff;
+      break;
+    case "AH Home -1.5":
+    case "AH Away +1.5":
+      adjustment = formDiff * 0.03 + h2hHomeDominance * 0.015 + injuryDiff;
+      break;
+    case "AH Home -2":
+    case "AH Away +2":
+      adjustment = formDiff * 0.025 + h2hHomeDominance * 0.01 + injuryDiff;
+      break;
+    case "AH Home +0.5":  // home or draw effectively
+    case "AH Away -0.5":
+      adjustment = formDiff * 0.02 + h2hHomeDominance * 0.01;
+      break;
+    case "AH Home +1":
+    case "AH Away -1":
+      adjustment = -formDiff * 0.035 - h2hHomeDominance * 0.02 - injuryDiff;
+      break;
+    case "AH Home +1.5":
+    case "AH Away -1.5":
+      adjustment = -formDiff * 0.03 - h2hHomeDominance * 0.015 - injuryDiff;
+      break;
+    // ─── DRAW NO BET ────────────────────────────────────────
+    case "Draw No Bet Home":
+      adjustment = formDiff * 0.03 + h2hHomeDominance * 0.015 + injuryDiff;
+      break;
+    case "Draw No Bet Away":
+      adjustment = -formDiff * 0.03 - h2hHomeDominance * 0.015 - injuryDiff;
       break;
     default:
       adjustment = 0;
@@ -571,12 +675,20 @@ export function buildSlip(opportunities, numSelections, riskLevel, targetOdds, t
   const passesMinProb = (opp) => {
     const prob = opp.aiProbability;
     const m = opp.market;
-    if (m.includes("Home Win") || m.includes("Away Win")) return prob >= minProb.match;
-    if (m.includes("Draw")) return prob >= minProb.draw;
+    if (m.includes("Home Win") || m.includes("Away Win")) {
+      if (m.includes("&")) return prob >= minProb.goals;  // Combo bets have lower base prob
+      return prob >= minProb.match;
+    }
+    if (m.includes("Draw") && !m.includes("Draw No Bet")) {
+      if (m.includes("&")) return prob >= 15;  // Draw combos are naturally rare
+      return prob >= minProb.draw;
+    }
     if (m.includes("1X") || m.includes("X2") || m.includes("12") || m.includes("Double")) return prob >= minProb.doubleChance;
     if (m.includes("Over") || m.includes("Under")) return prob >= minProb.goals;
     if (m.includes("BTTS")) return prob >= minProb.btts;
     if (m.includes("Corner")) return prob >= minProb.corners;
+    if (m.startsWith("AH")) return prob >= minProb.goals;  // Asian Handicap
+    if (m.includes("Draw No Bet")) return prob >= minProb.match;  // DNB similar to match result
     return prob >= minProb.match;
   };
 
@@ -629,10 +741,15 @@ export function buildSlip(opportunities, numSelections, riskLevel, targetOdds, t
 
   // Helper: get market category for a market name
   const getMarketCategory = (market) => {
+    if (market.includes("&") && market.includes("Over")) return "COMBO_OU";
+    if (market.includes("&") && market.includes("Under")) return "COMBO_OU";
+    if (market.includes("&") && market.includes("BTTS")) return "COMBO_BTTS";
     if (market.includes("Home Win") || market.includes("Away Win") || market.includes("Draw")) return "1X2";
     if (market.includes("Over") || market.includes("Under")) return "OU";
     if (market.includes("BTTS")) return "BTTS";
     if (market.includes("1X") || market.includes("X2") || market.includes("12")) return "DC";
+    if (market.startsWith("AH")) return "AH";
+    if (market.includes("Draw No Bet")) return "DNB";
     if (market.includes("Corner")) return "CORNERS";
     return "OTHER";
   };
