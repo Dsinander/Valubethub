@@ -88,8 +88,65 @@ export default function MatchPreviewPage({ matchTip, allFixtures, onBack }) {
       </div>
 
       {/* Match Preview Content */}
-      {fixture && (
+      {fixture && (() => {
+        // Generate quick verdict
+        const bestBet = matchOpps.length > 0 ? matchOpps[0] : null;
+        const topValueBets = matchOpps.filter(o => parseFloat(o.edge) > 0).slice(0, 3);
+        const totalGoals = (fixture.homeXGFor || 1.3) + (fixture.awayXGFor || 1.2);
+        const homeStrength = fixture.prediction?.homeWinPct || 33;
+        const awayStrength = fixture.prediction?.awayWinPct || 33;
+        const drawChance = fixture.prediction?.drawPct || 33;
+
+        let verdictText = "";
+        if (homeStrength >= 55) {
+          verdictText = `${fixture.home} are strong favourites here. The data supports a home win, especially with ${fixture.home}'s ${fixture.homeForm?.filter(r => r === "W").length || 0} wins in their last ${fixture.homeForm?.length || 5} matches.`;
+        } else if (awayStrength >= 55) {
+          verdictText = `${fixture.away} look like the stronger side despite travelling. Their recent form and underlying data suggest they have the edge in this fixture.`;
+        } else if (Math.abs(homeStrength - awayStrength) <= 10) {
+          verdictText = `This profiles as a tight, competitive match. Neither side has a commanding edge — look to goals markets (Over/Under, BTTS) for better value than picking a winner.`;
+        } else {
+          verdictText = `A fairly balanced fixture with a slight lean towards ${homeStrength > awayStrength ? fixture.home : fixture.away}. Home advantage ${homeStrength > awayStrength ? "supports" : "may not be enough to overcome"} the form differential.`;
+        }
+
+        if (totalGoals > 3.0) {
+          verdictText += ` Expected goals data points to an open, high-scoring game (combined avg ${totalGoals.toFixed(1)} goals).`;
+        } else if (totalGoals < 2.2) {
+          verdictText += ` Both sides tend toward lower-scoring games (combined avg ${totalGoals.toFixed(1)} goals), so under markets could be worth considering.`;
+        }
+
+        return (
         <div className="mp-content" key={fixture.id}>
+          {/* ─── QUICK VERDICT (NEW) ──────────────────────────── */}
+          <div className="mp-verdict">
+            <div className="mp-verdict-label">⚡ Quick Verdict</div>
+            <p className="mp-verdict-text">{verdictText}</p>
+            {bestBet && (
+              <div className="mp-best-bet">
+                <div className="mp-best-bet-label">🎯 Best Bet</div>
+                <div className="mp-best-bet-pick">
+                  <span className="mp-best-bet-market">{bestBet.market}</span>
+                  <span className="mp-best-bet-odds">@ {bestBet.bookmakerOdds}</span>
+                  {parseFloat(bestBet.edge) > 0 && (
+                    <span className="mp-best-bet-edge">+{bestBet.edge}% edge</span>
+                  )}
+                </div>
+                <div className="mp-best-bet-prob">
+                  AI: {bestBet.aiProbability}% · Book: {bestBet.impliedProbability}%
+                </div>
+              </div>
+            )}
+            {topValueBets.length > 1 && (
+              <div className="mp-also-consider">
+                <span style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>Also consider: </span>
+                {topValueBets.slice(1).map((vb, i) => (
+                  <span key={i} className="mp-also-chip">
+                    {vb.market} @ {vb.bookmakerOdds}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Match Header */}
           <div className="mp-match-header">
             <div className="mp-team">
@@ -262,7 +319,8 @@ export default function MatchPreviewPage({ matchTip, allFixtures, onBack }) {
             Always do your own research and bet responsibly. 18+ only.
           </div>
         </div>
-      )}
+        );
+      })()}
     </>
   );
 }
@@ -334,4 +392,87 @@ const PREVIEW_CSS = `
   }
 
   .mp-disclaimer { text-align: center; padding: 16px; font-size: 12px; color: var(--text-muted); line-height: 1.6; margin-top: 8px; }
+
+  /* Quick Verdict */
+  .mp-verdict {
+    padding: 20px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(212,175,55,0.06), rgba(212,175,55,0.01));
+    border: 1px solid rgba(212,175,55,0.2);
+    margin-bottom: 16px;
+  }
+  .mp-verdict-label {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--gold-400);
+    margin-bottom: 10px;
+  }
+  .mp-verdict-text {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+    margin-bottom: 14px;
+  }
+  .mp-best-bet {
+    padding: 14px;
+    border-radius: 10px;
+    background: var(--navy-800);
+    border: 1px solid var(--navy-600);
+    margin-bottom: 10px;
+  }
+  .mp-best-bet-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--gold-400);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 8px;
+  }
+  .mp-best-bet-pick {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+  }
+  .mp-best-bet-market {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .mp-best-bet-odds {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--gold-400);
+  }
+  .mp-best-bet-edge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(34,197,94,0.12);
+    color: var(--green-400);
+  }
+  .mp-best-bet-prob {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .mp-also-consider {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .mp-also-chip {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 5px;
+    background: var(--navy-800);
+    border: 1px solid var(--navy-600);
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
 `;
