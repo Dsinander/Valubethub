@@ -811,6 +811,175 @@ function ordinal(n) {
   return s[(v - 20) % 10] || s[v] || s[0];
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// NARRATIVE ENGINE
+// Generates human-readable analysis text for each prediction.
+// Not just bullet points — a paragraph that tells a story and gives
+// the reader confidence in WHY this bet was selected.
+// ═══════════════════════════════════════════════════════════════════════
+export function generateNarrative(fix, market, aiProb, impliedProb, edge) {
+  const home = fix.home;
+  const away = fix.away;
+  const homeForm = fix.homeForm || [];
+  const awayForm = fix.awayForm || [];
+  const homeRec = fix.homeRecord || {};
+  const awayRec = fix.awayRecord || {};
+  const h2h = fix.h2h || {};
+  const homePos = fix.homeLeaguePos;
+  const awayPos = fix.awayLeaguePos;
+  const prediction = fix.prediction || {};
+  const isEuropean = EUROPEAN_COMPS.includes(fix.league);
+  const homeWins = homeForm.filter(r => r === "W").length;
+  const awayWins = awayForm.filter(r => r === "W").length;
+  const homeLosses = homeForm.filter(r => r === "L").length;
+  const awayLosses = awayForm.filter(r => r === "L").length;
+  const homeFormStr = homeForm.join("");
+  const awayFormStr = awayForm.join("");
+  const homeGF = fix.homeXGFor || 1.3;
+  const awayGF = fix.awayXGFor || 1.2;
+  const totalXG = homeGF + awayGF;
+  const homeGA = fix.homeXGAgainst || 1.1;
+  const awayGA = fix.awayXGAgainst || 1.2;
+  const homeInj = (fix.homeInjuries || []).length;
+  const awayInj = (fix.awayInjuries || []).length;
+  const h2hTotal = (h2h.homeWins || 0) + (h2h.draws || 0) + (h2h.awayWins || 0);
+
+  // Power rating context for European matches
+  const homePower = isEuropean ? getClubPowerRating(home) : null;
+  const awayPower = isEuropean ? getClubPowerRating(away) : null;
+
+  const parts = [];
+
+  // ─── OPENING: Team situation ──────────────────────────────
+  // Which team does the market favour?
+  const isHomeBet = market.includes("Home Win") || market.includes("AH Home -") || market.includes("Draw No Bet Home");
+  const isAwayBet = market.includes("Away Win") || market.includes("AH Away -") || market.includes("Draw No Bet Away");
+  const isGoalsBet = market.includes("Over") || market.includes("Under") || market.includes("BTTS");
+  const isDrawBet = market === "Draw";
+  const isDoubleBet = market.includes("1X") || market.includes("X2") || market.includes("12");
+  const isComboBet = market.includes("&");
+
+  // Form description helpers
+  const describeForm = (name, form, wins, losses, pos, league) => {
+    const total = form.length;
+    if (total === 0) return "";
+    const formStr = form.join("");
+    if (pos && !isEuropean) {
+      if (wins >= 4) return `${name} are flying — ${wins} wins from their last ${total} (${formStr}), sitting ${pos}${ordinal(pos)} in the ${league || "league"}.`;
+      if (wins >= 3) return `${name} come into this in solid form with ${wins} wins from ${total} (${formStr}), placed ${pos}${ordinal(pos)} in the ${league || "league"}.`;
+      if (losses >= 3) return `${name} have been struggling lately with ${losses} defeats in their last ${total} (${formStr}), down in ${pos}${ordinal(pos)} place.`;
+      return `${name} sit ${pos}${ordinal(pos)} in the ${league || "league"} with mixed recent form (${formStr}).`;
+    }
+    if (wins >= 4) return `${name} are in outstanding form — ${wins} wins from their last ${total} (${formStr}).`;
+    if (wins >= 3) return `${name} have been solid recently with ${wins} wins from ${total} (${formStr}).`;
+    if (losses >= 3) return `${name} are struggling — just ${wins} win(s) in their last ${total} (${formStr}).`;
+    if (wins === losses) return `${name} have been inconsistent, managing ${wins} win(s) and ${losses} loss(es) from ${total} (${formStr}).`;
+    return `${name} come into this with ${wins} win(s) from their last ${total} (${formStr}).`;
+  };
+
+  // ─── HOME/AWAY BET NARRATIVE ──────────────────────────────
+  if (isHomeBet) {
+    parts.push(describeForm(home, homeForm, homeWins, homeLosses, homePos, fix.league));
+    if (awayForm.length > 0) {
+      if (awayLosses >= 3) parts.push(`Their opponents ${away} have been poor on the road with ${awayLosses} defeats recently (${awayFormStr}), which further strengthens the home case.`);
+      else if (awayWins >= 3) parts.push(`${away} arrive in good form (${awayFormStr}), so this won't be straightforward — but the data still leans ${home}'s way.`);
+      else parts.push(`${away} have been hit-and-miss lately (${awayFormStr}).`);
+    }
+  } else if (isAwayBet) {
+    parts.push(describeForm(away, awayForm, awayWins, awayLosses, awayPos, fix.league));
+    if (homeForm.length > 0) {
+      if (homeLosses >= 3) parts.push(`${home} have been poor at home with ${homeLosses} defeats recently (${homeFormStr}), making this a good opportunity for the visitors.`);
+      else if (homeWins >= 3) parts.push(`${home} are in decent home form (${homeFormStr}), so ${away} will need to be at their best.`);
+      else parts.push(`${home} have been inconsistent at home (${homeFormStr}).`);
+    }
+  } else if (isGoalsBet) {
+    if (totalXG > 2.8) parts.push(`This fixture profiles as a high-scoring affair — ${home} average ${homeGF.toFixed(1)} goals per game while ${away} contribute ${awayGF.toFixed(1)}, giving a combined expected total of ${totalXG.toFixed(1)} goals.`);
+    else if (totalXG < 2.2) parts.push(`Both sides tend toward tighter, lower-scoring matches — ${home} average ${homeGF.toFixed(1)} goals and ${away} ${awayGF.toFixed(1)}, with a combined expectation of just ${totalXG.toFixed(1)} goals.`);
+    else parts.push(`The expected goals data is balanced here (${totalXG.toFixed(1)} combined), suggesting a match that could go either way on the goals front.`);
+    if (market.includes("BTTS")) {
+      if (homeGA > 1.3 && awayGA > 1.3) parts.push(`Both defences leak goals — ${home} concede ${homeGA.toFixed(1)}/game and ${away} concede ${awayGA.toFixed(1)}/game. Both teams finding the net looks probable.`);
+      else if (homeGA < 0.8 || awayGA < 0.8) parts.push(`One of these defences is tight (${home}: ${homeGA.toFixed(1)} conceded/game, ${away}: ${awayGA.toFixed(1)}), which could prevent both teams from scoring.`);
+    }
+  } else if (isDrawBet) {
+    parts.push(`This profiles as a tight match where neither side has a commanding edge.`);
+    if (Math.abs(homeWins - awayWins) <= 1 && homeForm.length >= 3) parts.push(`${home} (${homeFormStr}) and ${away} (${awayFormStr}) are in remarkably similar form, pointing to a cagey affair.`);
+  } else if (isDoubleBet) {
+    if (market.includes("1X")) parts.push(`${home} at home are difficult to beat and ${away} may struggle to take all three points here.`);
+    else if (market.includes("X2")) parts.push(`${away} should be competitive enough to avoid defeat, and may well take all three points.`);
+    else parts.push(`Both sides have enough quality to prevent a draw, making a decisive result likely.`);
+    parts.push(describeForm(home, homeForm, homeWins, homeLosses, homePos, fix.league));
+  }
+
+  // ─── COMBO BET NARRATIVE ──────────────────────────────────
+  if (isComboBet) {
+    const [resultPart, statPart] = market.split(" & ");
+    if (resultPart.includes("Home")) parts.push(describeForm(home, homeForm, homeWins, homeLosses, homePos, fix.league));
+    if (resultPart.includes("Away")) parts.push(describeForm(away, awayForm, awayWins, awayLosses, awayPos, fix.league));
+    if (statPart?.includes("Over")) parts.push(`Combined expected goals of ${totalXG.toFixed(1)} support the over — this could be an open, attacking game.`);
+    if (statPart?.includes("Under")) parts.push(`Despite the result lean, goals could be scarce with ${totalXG.toFixed(1)} combined expected total.`);
+    if (statPart?.includes("BTTS Yes")) parts.push(`Both defences have vulnerabilities (${home}: ${homeGA.toFixed(1)} conceded/game, ${away}: ${awayGA.toFixed(1)}), making both teams scoring a realistic proposition.`);
+    if (statPart?.includes("BTTS No")) parts.push(`One of these sides could keep a clean sheet — ${homeGA < 1.0 ? home + " only concede " + homeGA.toFixed(1) + "/game" : awayGA < 1.0 ? away + " only concede " + awayGA.toFixed(1) + "/game" : "the favourite may dominate possession and limit chances"}.`);
+  }
+
+  // ─── EUROPEAN CONTEXT ─────────────────────────────────────
+  if (isEuropean && homePower && awayPower) {
+    const powerGap = homePower.rating - awayPower.rating;
+    if (Math.abs(powerGap) >= 20) {
+      const stronger = powerGap > 0 ? home : away;
+      const weaker = powerGap > 0 ? away : home;
+      const strongerP = powerGap > 0 ? homePower : awayPower;
+      const weakerP = powerGap > 0 ? awayPower : homePower;
+      parts.push(`In terms of overall quality, ${stronger} (squad ~${strongerP.value}) are a level above ${weaker} (squad ~${weakerP.value}). ${strongerP.pedigree} — that kind of European experience often proves decisive in continental competition.`);
+    } else if (Math.abs(powerGap) >= 8) {
+      const stronger = powerGap > 0 ? home : away;
+      const strongerP = powerGap > 0 ? homePower : awayPower;
+      parts.push(`${stronger} have a squad quality edge (Power ${strongerP.rating}/100) and stronger European pedigree. ${strongerP.pedigree}.`);
+    } else if (homePower.rating >= 85 && awayPower.rating >= 85) {
+      parts.push(`Two genuine European heavyweights going head-to-head. Both squads are stacked with international talent — expect a tactically intense battle where fine margins decide it.`);
+    }
+  }
+
+  // ─── H2H CONTEXT ──────────────────────────────────────────
+  if (h2hTotal >= 3) {
+    if (h2h.homeWins >= 3) parts.push(`The head-to-head record strongly favours ${home} with ${h2h.homeWins} wins from the last ${h2hTotal} meetings.`);
+    else if (h2h.awayWins >= 3) parts.push(`${away} dominate the recent head-to-head with ${h2h.awayWins} wins from ${h2hTotal} encounters.`);
+    else if (h2h.draws >= 2) parts.push(`These two have shared the spoils often — ${h2h.draws} draws from ${h2hTotal} recent meetings, suggesting another tight contest.`);
+    if (h2h.avgGoals && h2h.avgGoals > 3.0 && isGoalsBet) parts.push(`Their recent meetings have averaged ${h2h.avgGoals} goals, which is well above the norm.`);
+  }
+
+  // ─── INJURIES ─────────────────────────────────────────────
+  if (homeInj >= 3 && (isAwayBet || (isHomeBet && false))) {
+    parts.push(`${home} are also dealing with ${homeInj} injured players, which could weaken their starting XI.`);
+  }
+  if (awayInj >= 3 && (isHomeBet || (isAwayBet && false))) {
+    parts.push(`${away} are missing ${awayInj} players through injury, travelling with a depleted squad.`);
+  }
+
+  // ─── HOME RECORD CONTEXT ──────────────────────────────────
+  const homeTotal = (homeRec.w || 0) + (homeRec.d || 0) + (homeRec.l || 0);
+  const awayTotal = (awayRec.w || 0) + (awayRec.d || 0) + (awayRec.l || 0);
+  if (isHomeBet && homeTotal >= 5 && (homeRec.w || 0) / homeTotal >= 0.7) {
+    parts.push(`${home}'s home record this season is impressive — ${homeRec.w} wins from ${homeTotal} at their ground.`);
+  }
+  if (isAwayBet && awayTotal >= 5 && (awayRec.l || 0) / awayTotal >= 0.6) {
+    parts.push(`${away}'s away record has been poor (${awayRec.l} losses from ${awayTotal} on the road), but the odds may already reflect this.`);
+  }
+
+  // ─── CLOSING: Value verdict ───────────────────────────────
+  const edgeVal = typeof edge === "number" ? edge : parseFloat(edge);
+  if (edgeVal > 2) {
+    parts.push(`Our model sees genuine value here — at ${fix.odds?.[market] || "these odds"}, the bookmaker may be underestimating this outcome by ${edgeVal.toFixed(1)}%.`);
+  } else if (edgeVal > 0) {
+    parts.push(`There's a small edge in the odds (${edgeVal.toFixed(1)}%) — not a huge mispricing, but enough to make this a smart selection.`);
+  } else if (aiProb >= 55) {
+    parts.push(`While the odds are fairly priced, the high probability (${(aiProb).toFixed(0)}%) makes this a solid pick for accumulator building.`);
+  } else {
+    parts.push(`The value here comes from the combination of factors above rather than a single standout edge.`);
+  }
+
+  return parts.filter(p => p.length > 0).join(" ");
+}
+
 
 // Generate all opportunities from fixtures
 export function generateOpportunities(fixtures, allowedMarkets) {
@@ -854,6 +1023,9 @@ export function generateOpportunities(fixtures, allowedMarkets) {
       const impliedProb = 1 / realOdds;
       const edge = aiProb - impliedProb;
 
+      // Generate human-readable narrative for this pick
+      const narrative = generateNarrative(fix, market, aiProb * 100, impliedProb * 100, edge * 100);
+
       opps.push({
         id: `${fix.id}-${market}`,
         fixtureId: fix.id,
@@ -873,6 +1045,7 @@ export function generateOpportunities(fixtures, allowedMarkets) {
         impliedProbability: +(impliedProb * 100).toFixed(1),
         edge: +(edge * 100).toFixed(1),
         isValue: edge > 0.008,
+        narrative, // AI-written analysis paragraph
         // Analysis data for breakdown
         analysis: {
           homeForm: fix.homeForm,
