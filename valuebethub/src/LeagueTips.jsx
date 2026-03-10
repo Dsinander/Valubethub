@@ -192,6 +192,10 @@ export default function LeagueTipsPage({ onMatchPreview }) {
                       <span>Book: <strong>{tip.impliedProbability}%</strong></span>
                     </div>
 
+                    {tip.narrative && (
+                      <div className="lt-tip-narrative">{tip.narrative}</div>
+                    )}
+
                     <button className="lt-preview-btn" onClick={() => onMatchPreview && onMatchPreview(tip)}>
                       View Full Match Preview →
                     </button>
@@ -259,6 +263,16 @@ const LEAGUE_CSS = `
 
   .lt-tip-probs { font-size: 12px; color: var(--text-muted); display: flex; gap: 8px; margin-bottom: 8px; font-family: 'JetBrains Mono', monospace; }
 
+  .lt-tip-narrative {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(212,175,55,0.04);
+    border-left: 3px solid rgba(212,175,55,0.3);
+    margin: 8px 0;
+  }
   .lt-preview-btn { background: none; border: none; color: var(--gold-400); font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; cursor: pointer; padding: 4px 0; transition: color 0.2s; }
   .lt-preview-btn:hover { color: var(--gold-300); }
 
