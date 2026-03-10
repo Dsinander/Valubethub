@@ -980,6 +980,127 @@ export function generateNarrative(fix, market, aiProb, impliedProb, edge) {
   return parts.filter(p => p.length > 0).join(" ");
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// PROS / CONS GENERATOR
+// Generates supporting bullets (pros) and risk factors (cons) for each bet.
+// Honest cons build trust — users respect transparency.
+// ═══════════════════════════════════════════════════════════════════════
+export function generateProsCons(fix, market, aiProb, edge) {
+  const pros = [];
+  const cons = [];
+  const home = fix.home;
+  const away = fix.away;
+  const homeForm = fix.homeForm || [];
+  const awayForm = fix.awayForm || [];
+  const h2h = fix.h2h || {};
+  const homeRec = fix.homeRecord || {};
+  const awayRec = fix.awayRecord || {};
+  const homeInj = (fix.homeInjuries || []).length;
+  const awayInj = (fix.awayInjuries || []).length;
+  const homeGF = fix.homeXGFor || 1.3;
+  const awayGF = fix.awayXGFor || 1.2;
+  const homeGA = fix.homeXGAgainst || 1.1;
+  const awayGA = fix.awayXGAgainst || 1.2;
+  const totalXG = homeGF + awayGF;
+  const isEuropean = EUROPEAN_COMPS.includes(fix.league);
+  const homeWins = homeForm.filter(r => r === "W").length;
+  const awayWins = awayForm.filter(r => r === "W").length;
+  const homeLosses = homeForm.filter(r => r === "L").length;
+  const awayLosses = awayForm.filter(r => r === "L").length;
+  const h2hTotal = (h2h.homeWins || 0) + (h2h.draws || 0) + (h2h.awayWins || 0);
+  const homeTotal = (homeRec.w || 0) + (homeRec.d || 0) + (homeRec.l || 0);
+  const awayTotal = (awayRec.w || 0) + (awayRec.d || 0) + (awayRec.l || 0);
+
+  const isHomeBet = market.includes("Home Win") || market.includes("AH Home -") || market.includes("Draw No Bet Home");
+  const isAwayBet = market.includes("Away Win") || market.includes("AH Away -") || market.includes("Draw No Bet Away");
+  const isOverBet = market.includes("Over");
+  const isUnderBet = market.includes("Under");
+  const isBTTS = market.includes("BTTS");
+
+  // ─── PROS ─────────────────────────────────────────────────
+  if (isHomeBet) {
+    if (homeWins >= 3) pros.push(`${home} have won ${homeWins} of their last ${homeForm.length}`);
+    if (homeTotal >= 5 && (homeRec.w || 0) / homeTotal >= 0.6) pros.push(`Strong home record: ${homeRec.w}W from ${homeTotal} at home`);
+    if (awayLosses >= 3) pros.push(`${away} have lost ${awayLosses} of their last ${awayForm.length}`);
+    if (h2hTotal >= 3 && h2h.homeWins >= 2) pros.push(`H2H: ${home} won ${h2h.homeWins} of last ${h2hTotal} meetings`);
+    if (awayInj >= 2) pros.push(`${away} missing ${awayInj} players through injury`);
+    if (edge > 1) pros.push(`Positive value edge: +${edge.toFixed(1)}%`);
+  }
+  if (isAwayBet) {
+    if (awayWins >= 3) pros.push(`${away} have won ${awayWins} of their last ${awayForm.length}`);
+    if (awayTotal >= 5 && (awayRec.w || 0) / awayTotal >= 0.4) pros.push(`Solid away form: ${awayRec.w}W from ${awayTotal} away`);
+    if (homeLosses >= 3) pros.push(`${home} have lost ${homeLosses} of their last ${homeForm.length}`);
+    if (h2hTotal >= 3 && h2h.awayWins >= 2) pros.push(`H2H: ${away} won ${h2h.awayWins} of last ${h2hTotal} meetings`);
+    if (homeInj >= 2) pros.push(`${home} missing ${homeInj} players through injury`);
+    if (edge > 1) pros.push(`Positive value edge: +${edge.toFixed(1)}%`);
+  }
+  if (isOverBet) {
+    if (totalXG > 2.8) pros.push(`Combined expected goals: ${totalXG.toFixed(1)} per game`);
+    if (homeGF >= 1.8) pros.push(`${home} average ${homeGF.toFixed(1)} goals per game`);
+    if (awayGF >= 1.5) pros.push(`${away} average ${awayGF.toFixed(1)} goals per game`);
+    if (h2h.avgGoals && h2h.avgGoals >= 3.0) pros.push(`H2H average: ${h2h.avgGoals} goals per meeting`);
+  }
+  if (isUnderBet) {
+    if (totalXG < 2.3) pros.push(`Low combined expected goals: ${totalXG.toFixed(1)}`);
+    if (homeGA < 0.9) pros.push(`${home} concede only ${homeGA.toFixed(1)} goals per game`);
+    if (awayGA < 0.9) pros.push(`${away} concede only ${awayGA.toFixed(1)} goals per game`);
+  }
+  if (isBTTS) {
+    if (market.includes("Yes")) {
+      if (homeGA > 1.2) pros.push(`${home} concede ${homeGA.toFixed(1)} goals per game`);
+      if (awayGA > 1.2) pros.push(`${away} concede ${awayGA.toFixed(1)} goals per game`);
+    } else {
+      if (homeGA < 0.8) pros.push(`${home} have a tight defence: ${homeGA.toFixed(1)} conceded/game`);
+      if (awayGF < 0.9) pros.push(`${away} struggle to score: ${awayGF.toFixed(1)} goals/game`);
+    }
+  }
+
+  // European pedigree pro
+  if (isEuropean) {
+    const homePower = getClubPowerRating(home);
+    const awayPower = getClubPowerRating(away);
+    if (isHomeBet && homePower.rating - awayPower.rating >= 15) {
+      pros.push(`Squad quality advantage (Power ${homePower.rating} vs ${awayPower.rating})`);
+    }
+    if (isAwayBet && awayPower.rating - homePower.rating >= 15) {
+      pros.push(`Squad quality advantage (Power ${awayPower.rating} vs ${homePower.rating})`);
+    }
+  }
+
+  // ─── CONS (honest risk factors) ───────────────────────────
+  if (isHomeBet) {
+    if (homeLosses >= 2) cons.push(`${home} have lost ${homeLosses} of their last ${homeForm.length} — form is patchy`);
+    if (awayWins >= 3) cons.push(`${away} arrive in strong form: ${awayWins}W from ${awayForm.length}`);
+    if (h2hTotal >= 3 && h2h.awayWins >= 2) cons.push(`${away} have a decent H2H record: ${h2h.awayWins}W from ${h2hTotal}`);
+    if (homeInj >= 2) cons.push(`${home} missing ${homeInj} players through injury`);
+  }
+  if (isAwayBet) {
+    if (awayLosses >= 2) cons.push(`${away} have lost ${awayLosses} of their last ${awayForm.length}`);
+    if (homeWins >= 3) cons.push(`${home} are in good form: ${homeWins}W from ${homeForm.length}`);
+    if (homeTotal >= 5 && (homeRec.w || 0) / homeTotal >= 0.6) cons.push(`${home} have a strong home record this season`);
+    if (awayInj >= 2) cons.push(`${away} missing ${awayInj} players through injury`);
+  }
+  if (isOverBet) {
+    if (totalXG < 2.5) cons.push(`Combined expected goals (${totalXG.toFixed(1)}) not especially high`);
+    if (homeGA < 0.8 || awayGA < 0.8) cons.push(`One side has a tight defence which could limit scoring`);
+  }
+  if (isUnderBet) {
+    if (totalXG > 2.8) cons.push(`Combined expected goals (${totalXG.toFixed(1)}) suggest this could be open`);
+  }
+
+  // Generic risk cons
+  if (edge < 0) cons.push(`Bookmakers give this a slightly higher probability than our model`);
+
+  // European travel/rotation
+  if (isEuropean && isAwayBet) cons.push(`European away matches are inherently unpredictable`);
+
+  // Limit to reasonable count
+  return {
+    pros: pros.slice(0, 4),
+    cons: cons.slice(0, 3),
+  };
+}
+
 
 // Generate all opportunities from fixtures
 export function generateOpportunities(fixtures, allowedMarkets) {
@@ -1025,6 +1146,7 @@ export function generateOpportunities(fixtures, allowedMarkets) {
 
       // Generate human-readable narrative for this pick
       const narrative = generateNarrative(fix, market, aiProb * 100, impliedProb * 100, edge * 100);
+      const { pros, cons } = generateProsCons(fix, market, aiProb * 100, edge * 100);
 
       opps.push({
         id: `${fix.id}-${market}`,
@@ -1046,6 +1168,8 @@ export function generateOpportunities(fixtures, allowedMarkets) {
         edge: +(edge * 100).toFixed(1),
         isValue: edge > 0.008,
         narrative, // AI-written analysis paragraph
+        pros,     // Supporting bullets (2-4)
+        cons,     // Risk factors (1-3)
         // Analysis data for breakdown
         analysis: {
           homeForm: fix.homeForm,
