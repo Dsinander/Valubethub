@@ -119,7 +119,7 @@ export default function MatchPreviewPage({ matchTip, allFixtures, onBack }) {
           {/* ─── QUICK VERDICT (NEW) ──────────────────────────── */}
           <div className="mp-verdict">
             <div className="mp-verdict-label">⚡ Quick Verdict</div>
-            <p className="mp-verdict-text">{verdictText}</p>
+            <p className="mp-verdict-text">{bestBet?.narrative || verdictText}</p>
             {bestBet && (
               <div className="mp-best-bet">
                 <div className="mp-best-bet-label">🎯 Best Bet</div>
