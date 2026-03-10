@@ -20,10 +20,23 @@ async function apiFetch(endpoint) {
   const res = await fetch(`${API_BASE}${endpoint}`, {
     headers: { "x-apisports-key": API_KEY },
   });
+  // Handle rate limiting with retry
+  if (res.status === 429) {
+    console.log("Rate limited, waiting 3 seconds...");
+    await new Promise(r => setTimeout(r, 3000));
+    const retry = await fetch(`${API_BASE}${endpoint}`, {
+      headers: { "x-apisports-key": API_KEY },
+    });
+    if (!retry.ok) throw new Error(`API ${retry.status}`);
+    const json = await retry.json();
+    return json.response || [];
+  }
   if (!res.ok) throw new Error(`API ${res.status}`);
   const json = await res.json();
   return json.response || [];
 }
+
+const delay = (ms) => new Promise(r => setTimeout(r, ms));
 
 async function supabaseUpsert(data) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/team_stats`, {
@@ -69,9 +82,10 @@ async function processTeam(teamId, teamName, teamLogo, leagueId, leagueName, lea
     let over75c = 0, over85c = 0, over95c = 0, over105c = 0;
     let over25cards = 0, over35cards = 0, over45cards = 0;
 
-    // Process in batches of 3 to avoid rate limits
-    for (let i = 0; i < fixtures.length; i += 3) {
-      const batch = fixtures.slice(i, i + 3);
+    // Process in batches of 2 with delay to respect rate limits
+    for (let i = 0; i < fixtures.length; i += 2) {
+      if (i > 0) await delay(500); // 500ms pause between batches
+      const batch = fixtures.slice(i, i + 2);
       const statsResults = await Promise.all(
         batch.map(fix => apiFetch(`/fixtures/statistics?fixture=${fix.fixture.id}`).catch(() => []))
       );
@@ -330,28 +344,46 @@ export default async (req) => {
 
     console.log(`Found ${teamList.length} unique teams to process`);
 
-    // Process in batches of 3 teams (each team = ~6 API calls)
+    // Process 1 team at a time with delay to respect API rate limits
+    // Each team = ~6 API calls (1 last-5 + up to 5 stats + 1 standings)
+    // With delays: ~3 seconds per team, so ~50 teams in 150 seconds
+    // Netlify scheduled functions have 60s limit, so ~15-18 teams per run
+    // That's fine — it runs every 6 hours, data accumulates over time
     let processed = 0;
     const startTime = Date.now();
 
-    for (let i = 0; i < teamList.length; i += 3) {
-      // Time guard: stop after 20 seconds to stay within Netlify limits
-      if (Date.now() - startTime > 20000) {
-        console.log(`Time guard: processed ${processed}/${teamList.length} teams`);
+    for (let i = 0; i < teamList.length; i++) {
+      // Time guard: stop after 50 seconds to stay within Netlify limits
+      if (Date.now() - startTime > 50000) {
+        console.log(`Time guard: processed ${processed}/${teamList.length} teams in ${((Date.now() - startTime) / 1000).toFixed(1)}s`);
         break;
       }
 
-      const batch = teamList.slice(i, i + 3);
-      const results = await Promise.all(
-        batch.map(t => processTeam(t.id, t.name, t.logo, t.leagueId, t.league, t.leagueLogo))
-      );
+      // Check if we already have recent data for this team (skip if updated < 12h ago)
+      try {
+        const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/team_stats?team_name=eq.${encodeURIComponent(teamList[i].name)}&select=updated_at&limit=1`, {
+          headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` },
+        });
+        const existing = await checkRes.json();
+        if (existing?.[0]?.updated_at) {
+          const age = Date.now() - new Date(existing[0].updated_at).getTime();
+          if (age < 12 * 60 * 60 * 1000) { // Less than 12 hours old
+            continue; // Skip — data is fresh enough
+          }
+        }
+      } catch (e) { /* continue anyway */ }
 
-      // Upsert results to Supabase
-      const valid = results.filter(Boolean);
-      if (valid.length > 0) {
-        await supabaseUpsert(valid);
-        processed += valid.length;
+      const t = teamList[i];
+      const result = await processTeam(t.id, t.name, t.logo, t.leagueId, t.league, t.leagueLogo);
+
+      if (result) {
+        await supabaseUpsert([result]);
+        processed++;
+        console.log(`✓ ${t.name} (${processed}/${teamList.length})`);
       }
+
+      // Rate limit pause: 1.5 seconds between teams
+      await delay(1500);
     }
 
     return new Response(JSON.stringify({
@@ -371,6 +403,8 @@ export default async (req) => {
 };
 
 export const config = {
-  // Run every 6 hours
-  schedule: "0 */6 * * *",
+  // Run every 2 hours — each run processes ~15 teams
+  // With 178 teams, full refresh takes ~12 runs = ~24 hours
+  // Teams are skipped if updated within 12 hours
+  schedule: "0 */2 * * *",
 };
