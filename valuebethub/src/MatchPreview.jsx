@@ -4,6 +4,7 @@
 
 import { useState, useEffect } from "react";
 import { fetchMatchData, generateOpportunities, MARKET_CATEGORIES } from "./api.js";
+import { ProsCons, FullTeamStats } from "./TeamStatsCard.jsx";
 
 // ═══════════════════════════════════════════════════════════════════════
 // MATCH PREVIEW PAGE
@@ -145,6 +146,8 @@ export default function MatchPreviewPage({ matchTip, allFixtures, onBack }) {
                 ))}
               </div>
             )}
+            {/* Pros/Cons for best bet */}
+            {bestBet && <ProsCons pros={bestBet.pros} cons={bestBet.cons} />}
           </div>
 
           {/* Match Header */}
@@ -312,6 +315,12 @@ export default function MatchPreviewPage({ matchTip, allFixtures, onBack }) {
               </div>
             </div>
           )}
+
+          {/* Full Team Statistics */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 16 }}>
+            <FullTeamStats teamName={fixture.home} />
+            <FullTeamStats teamName={fixture.away} />
+          </div>
 
           {/* Disclaimer */}
           <div className="mp-disclaimer">
