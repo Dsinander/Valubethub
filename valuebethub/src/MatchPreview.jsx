@@ -75,7 +75,7 @@ export default function MatchPreviewPage({ matchTip, allFixtures, onBack }) {
               className={`mp-match-btn ${fixture?.id === f.id ? "active" : ""}`}
               onClick={() => setSelectedFixtureId(f.id)}
             >
-              <div className="mp-match-btn-teams">{f.home} vs {f.away}</div>
+              <div className="mp-match-btn-teams">{f.homeLogo && <img src={f.homeLogo} style={{ width: 16, height: 16, objectFit: "contain", verticalAlign: "middle", marginRight: 4, borderRadius: 2 }} alt="" />}{f.home} vs {f.away}{f.awayLogo && <img src={f.awayLogo} style={{ width: 16, height: 16, objectFit: "contain", verticalAlign: "middle", marginLeft: 4, borderRadius: 2 }} alt="" />}</div>
               <div className="mp-match-btn-meta">{f.leagueFlag} {f.league} · {f.day} {f.time}</div>
             </button>
           ))}
@@ -93,7 +93,7 @@ export default function MatchPreviewPage({ matchTip, allFixtures, onBack }) {
           {/* Match Header */}
           <div className="mp-match-header">
             <div className="mp-team">
-              <div className="mp-team-name">{fixture.home}</div>
+              <div className="mp-team-name">{fixture.homeLogo && <img src={fixture.homeLogo} style={{ width: 28, height: 28, objectFit: "contain", verticalAlign: "middle", marginRight: 8, borderRadius: 3 }} alt="" />}{fixture.home}</div>
               <div className="mp-team-form">
                 {(fixture.homeForm || []).map((r, i) => (
                   <span key={i} className={`form-pill pill-${r}`}>{r}</span>
@@ -107,7 +107,7 @@ export default function MatchPreviewPage({ matchTip, allFixtures, onBack }) {
               <div className="mp-match-date">{fixture.date}</div>
             </div>
             <div className="mp-team" style={{ textAlign: "right" }}>
-              <div className="mp-team-name">{fixture.away}</div>
+              <div className="mp-team-name">{fixture.away}{fixture.awayLogo && <img src={fixture.awayLogo} style={{ width: 28, height: 28, objectFit: "contain", verticalAlign: "middle", marginLeft: 8, borderRadius: 3 }} alt="" />}</div>
               <div className="mp-team-form" style={{ justifyContent: "flex-end" }}>
                 {(fixture.awayForm || []).map((r, i) => (
                   <span key={i} className={`form-pill pill-${r}`}>{r}</span>
