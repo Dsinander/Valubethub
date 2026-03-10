@@ -100,6 +100,10 @@ export const MARKET_CATEGORIES = {
 // 4. Injuries (key players missing can shift things)
 //
 // Maximum adjustment: ±5% from bookmaker implied probability
+// + ±3% from league strength in European comps
+// + ±2.5% from club power rating in European comps
+// Combined max in European matches: ~±10% for extreme mismatches (e.g. Real Madrid vs Celje)
+// For same-league domestic matches: max ±5% (no league/power adjustments)
 // This is honest and realistic — even the best models rarely beat the market by more.
 
 function calcFormStrength(form) {
@@ -157,17 +161,31 @@ function calcMarketProb(fixture, market, bookmakerOdds) {
   const awayInjCount = (fixture.awayInjuries || []).length;
   const injuryDiff = (awayInjCount - homeInjCount) * 0.008; // more away injuries = slight home boost
   
+  // League strength (European comps only)
+  // A Premier League team vs a Czech league team = significant advantage
+  // Max impact: ±3% adjustment (0.30 coefficient gap * 0.10 = 0.03)
+  const leagueStrengthDiff = fixture._leagueStrengthDiff || 0;
+  const leagueAdj = leagueStrengthDiff * 0.10; // coefficient diff → probability adjustment
+
+  // Club Power Rating (European comps only)
+  // Captures squad value + European pedigree + continental experience
+  // Max impact: ±2.5% (50-point gap * 0.0005 = 0.025)
+  // Real Madrid (98) vs Bodø/Glimt (42) = 56 * 0.0005 = +2.8% boost for Real
+  // Real Madrid (98) vs Inter (84) = 14 * 0.0005 = +0.7% — small but meaningful
+  const powerRatingDiff = fixture._powerRatingDiff || 0;
+  const powerAdj = powerRatingDiff * 0.0005;
+  
   switch (market) {
     case "Home Win":
-      // Better home form, H2H dominance, and fewer injuries = slight boost
-      adjustment = formDiff * 0.04 + h2hHomeDominance * 0.02 + injuryDiff;
+      // Better home form, H2H dominance, fewer injuries, stronger league, AND higher power rating = boost
+      adjustment = formDiff * 0.04 + h2hHomeDominance * 0.02 + injuryDiff + leagueAdj + powerAdj;
       break;
     case "Draw":
-      // Draws more likely when teams are close in form
-      adjustment = -Math.abs(formDiff) * 0.02;
+      // Draws more likely when teams are close in form AND league strength
+      adjustment = -Math.abs(formDiff) * 0.02 - Math.abs(leagueAdj) * 0.5 - Math.abs(powerAdj) * 0.4;
       break;
     case "Away Win":
-      adjustment = -formDiff * 0.04 - h2hHomeDominance * 0.02 - injuryDiff;
+      adjustment = -formDiff * 0.04 - h2hHomeDominance * 0.02 - injuryDiff - leagueAdj - powerAdj;
       break;
     case "Over 1.5":
     case "Over 2.5":
@@ -191,10 +209,10 @@ function calcMarketProb(fixture, market, bookmakerOdds) {
       adjustment = -(lowestScorer - 1.0) * 0.02;
       break;
     case "1X (Home or Draw)":
-      adjustment = formDiff * 0.02 + h2hHomeDominance * 0.01;
+      adjustment = formDiff * 0.02 + h2hHomeDominance * 0.01 + leagueAdj * 0.5 + powerAdj * 0.4;
       break;
     case "X2 (Draw or Away)":
-      adjustment = -formDiff * 0.02 - h2hHomeDominance * 0.01;
+      adjustment = -formDiff * 0.02 - h2hHomeDominance * 0.01 - leagueAdj * 0.5 - powerAdj * 0.4;
       break;
     case "12 (Home or Away)":
       adjustment = Math.abs(formDiff) * 0.01; // bigger form gap = less likely draw
@@ -209,10 +227,10 @@ function calcMarketProb(fixture, market, bookmakerOdds) {
       break;
     // ─── COMBO: 1X2 + Over/Under 2.5 ────────────────────────
     case "Home Win & Over 2.5":
-      adjustment = formDiff * 0.03 + (expectedGoals - 2.5) * 0.012 + h2hHomeDominance * 0.015;
+      adjustment = formDiff * 0.03 + (expectedGoals - 2.5) * 0.012 + h2hHomeDominance * 0.015 + leagueAdj * 0.7 + powerAdj * 0.5;
       break;
     case "Home Win & Under 2.5":
-      adjustment = formDiff * 0.03 - (expectedGoals - 2.5) * 0.012 + h2hHomeDominance * 0.01;
+      adjustment = formDiff * 0.03 - (expectedGoals - 2.5) * 0.012 + h2hHomeDominance * 0.01 + leagueAdj * 0.7 + powerAdj * 0.5;
       break;
     case "Draw & Over 2.5":
       adjustment = -Math.abs(formDiff) * 0.015 + (expectedGoals - 2.5) * 0.012;
@@ -221,10 +239,10 @@ function calcMarketProb(fixture, market, bookmakerOdds) {
       adjustment = -Math.abs(formDiff) * 0.015 - (expectedGoals - 2.5) * 0.012;
       break;
     case "Away Win & Over 2.5":
-      adjustment = -formDiff * 0.03 + (expectedGoals - 2.5) * 0.012 - h2hHomeDominance * 0.015;
+      adjustment = -formDiff * 0.03 + (expectedGoals - 2.5) * 0.012 - h2hHomeDominance * 0.015 - leagueAdj * 0.7 - powerAdj * 0.5;
       break;
     case "Away Win & Under 2.5":
-      adjustment = -formDiff * 0.03 - (expectedGoals - 2.5) * 0.012 - h2hHomeDominance * 0.01;
+      adjustment = -formDiff * 0.03 - (expectedGoals - 2.5) * 0.012 - h2hHomeDominance * 0.01 - leagueAdj * 0.7 - powerAdj * 0.5;
       break;
     // ─── COMBO: 1X2 + BTTS ──────────────────────────────────
     case "Home Win & BTTS Yes": {
@@ -258,38 +276,38 @@ function calcMarketProb(fixture, market, bookmakerOdds) {
     // ─── ASIAN HANDICAP ─────────────────────────────────────
     case "AH Home -0.5":   // same as Home Win effectively
     case "AH Away +0.5":
-      adjustment = formDiff * 0.04 + h2hHomeDominance * 0.02 + injuryDiff;
+      adjustment = formDiff * 0.04 + h2hHomeDominance * 0.02 + injuryDiff + leagueAdj + powerAdj;
       break;
     case "AH Home -1":
     case "AH Away +1":
-      adjustment = formDiff * 0.035 + h2hHomeDominance * 0.02 + injuryDiff;
+      adjustment = formDiff * 0.035 + h2hHomeDominance * 0.02 + injuryDiff + leagueAdj * 0.9 + powerAdj * 0.7;
       break;
     case "AH Home -1.5":
     case "AH Away +1.5":
-      adjustment = formDiff * 0.03 + h2hHomeDominance * 0.015 + injuryDiff;
+      adjustment = formDiff * 0.03 + h2hHomeDominance * 0.015 + injuryDiff + leagueAdj * 0.8 + powerAdj * 0.6;
       break;
     case "AH Home -2":
     case "AH Away +2":
-      adjustment = formDiff * 0.025 + h2hHomeDominance * 0.01 + injuryDiff;
+      adjustment = formDiff * 0.025 + h2hHomeDominance * 0.01 + injuryDiff + leagueAdj * 0.7 + powerAdj * 0.5;
       break;
     case "AH Home +0.5":  // home or draw effectively
     case "AH Away -0.5":
-      adjustment = formDiff * 0.02 + h2hHomeDominance * 0.01;
+      adjustment = formDiff * 0.02 + h2hHomeDominance * 0.01 + leagueAdj * 0.5 + powerAdj * 0.4;
       break;
     case "AH Home +1":
     case "AH Away -1":
-      adjustment = -formDiff * 0.035 - h2hHomeDominance * 0.02 - injuryDiff;
+      adjustment = -formDiff * 0.035 - h2hHomeDominance * 0.02 - injuryDiff - leagueAdj * 0.9 - powerAdj * 0.7;
       break;
     case "AH Home +1.5":
     case "AH Away -1.5":
-      adjustment = -formDiff * 0.03 - h2hHomeDominance * 0.015 - injuryDiff;
+      adjustment = -formDiff * 0.03 - h2hHomeDominance * 0.015 - injuryDiff - leagueAdj * 0.8 - powerAdj * 0.6;
       break;
     // ─── DRAW NO BET ────────────────────────────────────────
     case "Draw No Bet Home":
-      adjustment = formDiff * 0.03 + h2hHomeDominance * 0.015 + injuryDiff;
+      adjustment = formDiff * 0.03 + h2hHomeDominance * 0.015 + injuryDiff + leagueAdj * 0.8 + powerAdj * 0.6;
       break;
     case "Draw No Bet Away":
-      adjustment = -formDiff * 0.03 - h2hHomeDominance * 0.015 - injuryDiff;
+      adjustment = -formDiff * 0.03 - h2hHomeDominance * 0.015 - injuryDiff - leagueAdj * 0.8 - powerAdj * 0.6;
       break;
     default:
       adjustment = 0;
@@ -312,6 +330,146 @@ function calcMarketProb(fixture, market, bookmakerOdds) {
 
 const EUROPEAN_COMPS = ["Champions League", "Europa League", "Conference League"];
 
+// ─── LEAGUE STRENGTH TIERS ──────────────────────────────────────────
+// Used in European competitions to adjust predictions based on domestic league quality.
+// Tier 1 = elite leagues (top 5), Tier 5 = smaller leagues. 
+// A 1st-place team in Serie A is far stronger than a 1st-place team in the Swedish league.
+const LEAGUE_STRENGTH = {
+  // Tier 1 — Elite (coefficient ~1.0)
+  "Premier League": { tier: 1, coefficient: 1.00, label: "Elite" },
+  "La Liga":        { tier: 1, coefficient: 0.98, label: "Elite" },
+  "Serie A":        { tier: 1, coefficient: 0.95, label: "Elite" },
+  "Bundesliga":     { tier: 1, coefficient: 0.93, label: "Elite" },
+  "Ligue 1":        { tier: 1, coefficient: 0.88, label: "Elite" },
+  // Tier 2 — Strong
+  "Eredivisie":     { tier: 2, coefficient: 0.75, label: "Strong" },
+  "Primeira Liga":  { tier: 2, coefficient: 0.78, label: "Strong" },
+  "Super Lig":      { tier: 2, coefficient: 0.70, label: "Strong" },
+  "Jupiler Pro League": { tier: 2, coefficient: 0.68, label: "Strong" },
+  // Tier 3+ — default for unknown leagues
+};
+const DEFAULT_LEAGUE = { tier: 3, coefficient: 0.55, label: "Mid-tier" };
+
+// ─── CLUB POWER RATINGS ─────────────────────────────────────────────
+// Combined metric: squad market value + European pedigree + recent form in continental comps.
+// Scale: 0-100. Updated once per season (summer 2025 values).
+//
+// Formula concept:
+//   40% squad value (normalized 0-100)
+//   35% European pedigree (CL/EL titles, semi-final appearances last 10 years)
+//   25% recent European performance (last 2-3 campaigns)
+//
+// This is the tiebreaker when league strength, form, and H2H can't split teams.
+// Real Madrid (98) vs Inter (84) in a "50/50" on paper → slight Madrid edge.
+// Inter (84) vs Bodø/Glimt (35) → significant gap even if Bodø have good form.
+
+const CLUB_POWER_RATINGS = {
+  // ═══ TIER 1: European Elite (90-100) ═══════════════════════════════
+  // Multiple CL titles or consistent finalists, €800M+ squads
+  "Real Madrid":           { rating: 98, value: "€1.2B", pedigree: "15× CL, 6 in last 12 years", tier: "European Elite" },
+  "Manchester City":       { rating: 96, value: "€1.3B", pedigree: "1× CL, 4 consecutive semis+", tier: "European Elite" },
+  "Bayern München":        { rating: 95, value: "€900M", pedigree: "6× CL, perennial semis", tier: "European Elite" },
+  "Liverpool":             { rating: 93, value: "€950M", pedigree: "6× CL, 2× recent finals", tier: "European Elite" },
+  "Barcelona":             { rating: 92, value: "€1.0B", pedigree: "5× CL, rebuilding but DNA intact", tier: "European Elite" },
+  "Paris Saint Germain":   { rating: 91, value: "€1.0B", pedigree: "1× CL final, consistent QFs", tier: "European Elite" },
+  "Chelsea":               { rating: 90, value: "€1.1B", pedigree: "2× CL (2012, 2021)", tier: "European Elite" },
+
+  // ═══ TIER 2: Continental Heavyweights (80-89) ══════════════════════
+  // CL semi-finalists, strong squads, proven European pedigree
+  "Arsenal":               { rating: 88, value: "€1.0B", pedigree: "Never won CL, recent semi runs", tier: "Continental Heavyweight" },
+  "Inter":                 { rating: 84, value: "€700M", pedigree: "3× CL (last 2010), 2023 final", tier: "Continental Heavyweight" },
+  "Atletico Madrid":       { rating: 85, value: "€750M", pedigree: "2× CL final (2014, 2016)", tier: "Continental Heavyweight" },
+  "Juventus":              { rating: 83, value: "€650M", pedigree: "2× CL (last 1996), 2× recent finals", tier: "Continental Heavyweight" },
+  "Borussia Dortmund":     { rating: 82, value: "€600M", pedigree: "1× CL (1997), 2024 final", tier: "Continental Heavyweight" },
+  "AC Milan":              { rating: 82, value: "€550M", pedigree: "7× CL (last 2007), 2023 semi", tier: "Continental Heavyweight" },
+  "Tottenham":             { rating: 81, value: "€800M", pedigree: "1× CL final (2019)", tier: "Continental Heavyweight" },
+  "Napoli":                { rating: 81, value: "€650M", pedigree: "Limited CL history, 2023 QF run", tier: "Continental Heavyweight" },
+  "Bayer Leverkusen":      { rating: 80, value: "€600M", pedigree: "2024 EL final, rising force", tier: "Continental Heavyweight" },
+
+  // ═══ TIER 3: Established European Clubs (68-79) ════════════════════
+  // Regular European group stage, occasional knockout runs
+  "Benfica":               { rating: 78, value: "€450M", pedigree: "2× CL, consistent R16/QF", tier: "Established European" },
+  "FC Porto":              { rating: 76, value: "€350M", pedigree: "2× CL (last 2004), always qualify", tier: "Established European" },
+  "Newcastle":             { rating: 76, value: "€700M", pedigree: "Limited Euro history, new investment", tier: "Established European" },
+  "Aston Villa":           { rating: 74, value: "€650M", pedigree: "1× CL (1982), European return", tier: "Established European" },
+  "AS Roma":               { rating: 73, value: "€450M", pedigree: "2022 Conference, 2023 EL final", tier: "Established European" },
+  "Atalanta":              { rating: 73, value: "€500M", pedigree: "2024 EL winner, CL debutant", tier: "Established European" },
+  "Sporting CP":           { rating: 72, value: "€350M", pedigree: "CL regulars, talent factory", tier: "Established European" },
+  "Ajax":                  { rating: 72, value: "€300M", pedigree: "4× CL (last 1995), 2019 semi", tier: "Established European" },
+  "RB Leipzig":            { rating: 72, value: "€550M", pedigree: "2020 CL semi", tier: "Established European" },
+  "Villarreal":            { rating: 71, value: "€400M", pedigree: "2021 EL winner, 2022 CL semi", tier: "Established European" },
+  "Fiorentina":            { rating: 70, value: "€350M", pedigree: "2× Conference League finals", tier: "Established European" },
+  "Eintracht Frankfurt":   { rating: 70, value: "€350M", pedigree: "2022 EL winner", tier: "Established European" },
+  "Nottingham Forest":     { rating: 69, value: "€400M", pedigree: "2× CL (1979-80), long absence", tier: "Established European" },
+  "VfB Stuttgart":         { rating: 68, value: "€350M", pedigree: "Limited modern Euro pedigree", tier: "Established European" },
+  "Monaco":                { rating: 68, value: "€350M", pedigree: "2017 CL semi, inconsistent", tier: "Established European" },
+  "Marseille":             { rating: 68, value: "€300M", pedigree: "1× CL (1993), EL regulars", tier: "Established European" },
+  "PSV Eindhoven":         { rating: 68, value: "€280M", pedigree: "1× CL (1988), consistent qualifiers", tier: "Established European" },
+  "Club Brugge KV":        { rating: 66, value: "€200M", pedigree: "CL group stage regulars", tier: "Established European" },
+  "SC Braga":              { rating: 65, value: "€180M", pedigree: "EL/Conference regulars", tier: "Established European" },
+  "Lyon":                  { rating: 68, value: "€300M", pedigree: "2020 CL semi, strong history", tier: "Established European" },
+  "Crystal Palace":        { rating: 65, value: "€400M", pedigree: "Minimal European history", tier: "Established European" },
+  "Lille":                 { rating: 67, value: "€350M", pedigree: "CL group stage, solid squad", tier: "Established European" },
+  "Bologna":               { rating: 64, value: "€300M", pedigree: "CL debut 2024", tier: "Established European" },
+  "Real Betis":            { rating: 66, value: "€350M", pedigree: "EL regulars", tier: "Established European" },
+  "SC Freiburg":           { rating: 63, value: "€280M", pedigree: "EL debut recent", tier: "Established European" },
+  "Genk":                  { rating: 60, value: "€180M", pedigree: "CL group stage occasionally", tier: "Established European" },
+
+  // ═══ TIER 4: European Regulars (50-67) ═════════════════════════════
+  // Qualify through domestic league, limited knockout experience
+  "Galatasaray":           { rating: 62, value: "€250M", pedigree: "2000 UEFA Cup, CL groups", tier: "European Regular" },
+  "Fenerbahçe":            { rating: 58, value: "€200M", pedigree: "CL/EL group stage", tier: "European Regular" },
+  "AZ Alkmaar":            { rating: 58, value: "€150M", pedigree: "Conference League competitor", tier: "European Regular" },
+  "Feyenoord":             { rating: 64, value: "€200M", pedigree: "2002 UEFA Cup, recent CL return", tier: "European Regular" },
+  "Panathinaikos":         { rating: 50, value: "€80M", pedigree: "1971 CL final, limited modern", tier: "European Regular" },
+  "Ferencvarosi TC":       { rating: 48, value: "€60M", pedigree: "EL/Conference group stage", tier: "European Regular" },
+  "Shakhtar Donetsk":      { rating: 55, value: "€120M", pedigree: "2009 UEFA Cup, CL R16 runs", tier: "European Regular" },
+  "Rayo Vallecano":        { rating: 52, value: "€150M", pedigree: "Rare European appearances", tier: "European Regular" },
+  "FC Midtjylland":        { rating: 45, value: "€80M", pedigree: "CL debut recent", tier: "European Regular" },
+  "Samsunspor":            { rating: 40, value: "€50M", pedigree: "Limited European history", tier: "European Regular" },
+  "Lech Poznan":           { rating: 44, value: "€50M", pedigree: "Conference League regulars", tier: "European Regular" },
+  "AEK Athens FC":         { rating: 48, value: "€60M", pedigree: "1971 UEFA Cup finalist", tier: "European Regular" },
+  "AEK Larnaca":           { rating: 35, value: "€25M", pedigree: "Conference League qualifier", tier: "European Regular" },
+  "Celta Vigo":            { rating: 58, value: "€200M", pedigree: "EL semi (2017)", tier: "European Regular" },
+  "Raków Częstochowa":     { rating: 38, value: "€35M", pedigree: "Conference League debut", tier: "European Regular" },
+  "FSV Mainz 05":          { rating: 55, value: "€200M", pedigree: "EL group stage", tier: "European Regular" },
+  "Sparta Praha":          { rating: 48, value: "€70M", pedigree: "CL group stage 2024", tier: "European Regular" },
+  "HNK Rijeka":            { rating: 38, value: "€30M", pedigree: "Conference League qualifier", tier: "European Regular" },
+  "Strasbourg":            { rating: 52, value: "€150M", pedigree: "Limited European history", tier: "European Regular" },
+  "Sigma Olomouc":         { rating: 35, value: "€25M", pedigree: "Conference League qualifier", tier: "European Regular" },
+  "Celje":                 { rating: 30, value: "€15M", pedigree: "Conference League debut", tier: "European Regular" },
+  "Bodo/Glimt":            { rating: 42, value: "€40M", pedigree: "Conference League semi 2022", tier: "European Regular" },
+
+  // ═══ DOMESTIC-ONLY CLUBS (no rating — won't appear in European comps) ═══
+  // These use league strength only, no power rating needed
+};
+
+const DEFAULT_POWER_RATING = { rating: 45, value: "Unknown", pedigree: "Limited European history", tier: "Unrated" };
+
+function getClubPowerRating(teamName) {
+  // Try exact match first
+  if (CLUB_POWER_RATINGS[teamName]) return CLUB_POWER_RATINGS[teamName];
+  // Try partial match (API sometimes uses slightly different names)
+  const key = Object.keys(CLUB_POWER_RATINGS).find(k =>
+    teamName.includes(k) || k.includes(teamName)
+  );
+  return key ? CLUB_POWER_RATINGS[key] : DEFAULT_POWER_RATING;
+}
+
+function getLeagueStrength(leagueName) {
+  return LEAGUE_STRENGTH[leagueName] || DEFAULT_LEAGUE;
+}
+
+// Get the domestic league of a team in a European competition
+// by looking at their other fixtures in the dataset
+function getTeamDomesticLeague(teamName, allFixtures) {
+  const domesticFixture = allFixtures.find(f =>
+    (f.home === teamName || f.away === teamName) &&
+    !EUROPEAN_COMPS.includes(f.league)
+  );
+  return domesticFixture?.league || null;
+}
+
 function generateContextInsights(fixture, allFixtures) {
   const insights = [];
   const home = fixture.home;
@@ -326,8 +484,88 @@ function generateContextInsights(fixture, allFixtures) {
   const isEuropean = EUROPEAN_COMPS.includes(fixture.league);
   const fixtureDate = new Date(fixture.date);
 
-  // ─── LEAGUE POSITION GAP ───────────────────────────────────
-  if (homePos && awayPos) {
+  // ─── LEAGUE POSITION / STRENGTH GAP ──────────────────────────
+  if (isEuropean) {
+    // In European comps, compare DOMESTIC LEAGUE STRENGTH, not positions
+    const homeDomestic = getTeamDomesticLeague(home, allFixtures);
+    const awayDomestic = getTeamDomesticLeague(away, allFixtures);
+    const homeLeague = homeDomestic ? getLeagueStrength(homeDomestic) : DEFAULT_LEAGUE;
+    const awayLeague = awayDomestic ? getLeagueStrength(awayDomestic) : DEFAULT_LEAGUE;
+    const coeffDiff = homeLeague.coefficient - awayLeague.coefficient;
+
+    if (Math.abs(coeffDiff) >= 0.15) {
+      const stronger = coeffDiff > 0 ? home : away;
+      const weaker = coeffDiff > 0 ? away : home;
+      const strongerLeague = coeffDiff > 0 ? (homeDomestic || "unknown") : (awayDomestic || "unknown");
+      const weakerLeague = coeffDiff > 0 ? (awayDomestic || "unknown") : (homeDomestic || "unknown");
+      const strongerTier = coeffDiff > 0 ? homeLeague : awayLeague;
+      const weakerTier = coeffDiff > 0 ? awayLeague : homeLeague;
+      insights.push({
+        type: "league_strength",
+        icon: "🏟️",
+        impact: coeffDiff > 0 ? "positive_home" : "positive_away",
+        title: `Domestic league advantage: ${stronger}`,
+        detail: `${stronger} play in ${strongerLeague} (${strongerTier.label}), while ${weaker} come from ${weakerLeague} (${weakerTier.label}). In European competition, teams from stronger domestic leagues tend to have deeper squads and higher quality overall.`,
+      });
+    } else if (Math.abs(coeffDiff) < 0.05 && homeDomestic && awayDomestic) {
+      insights.push({
+        type: "league_strength",
+        icon: "🏟️",
+        impact: "neutral",
+        title: "Similar domestic league quality",
+        detail: `Both teams come from comparable domestic leagues (${homeDomestic || "N/A"} vs ${awayDomestic || "N/A"}). No significant quality gap from league strength alone.`,
+      });
+    }
+
+    // Also show league positions if available but label them correctly
+    if (homePos && awayPos) {
+      insights.push({
+        type: "league_positions",
+        icon: "📊",
+        impact: "neutral",
+        title: "Domestic league positions",
+        detail: `${home} sit ${homePos}${ordinal(homePos)} in ${homeDomestic || "their league"}, while ${away} are ${awayPos}${ordinal(awayPos)} in ${awayDomestic || "their league"}. Note: positions are in different leagues and not directly comparable.`,
+      });
+    }
+
+    // ─── CLUB POWER RATING (squad value + European pedigree) ────
+    const homePower = getClubPowerRating(home);
+    const awayPower = getClubPowerRating(away);
+    const powerGap = homePower.rating - awayPower.rating;
+
+    if (Math.abs(powerGap) >= 15) {
+      const stronger = powerGap > 0 ? home : away;
+      const weaker = powerGap > 0 ? away : home;
+      const strongerPwr = powerGap > 0 ? homePower : awayPower;
+      const weakerPwr = powerGap > 0 ? awayPower : homePower;
+      insights.push({
+        type: "club_power",
+        icon: "💎",
+        impact: powerGap > 0 ? "positive_home" : "positive_away",
+        title: `Club power advantage: ${stronger}`,
+        detail: `${stronger} (Power ${strongerPwr.rating}/100, squad ~${strongerPwr.value}) significantly outrank ${weaker} (Power ${weakerPwr.rating}/100, squad ~${weakerPwr.value}). ${strongerPwr.pedigree}. Squad depth and European experience matter in continental competition.`,
+      });
+    } else if (Math.abs(powerGap) >= 5) {
+      const slight = powerGap > 0 ? home : away;
+      const slightPwr = powerGap > 0 ? homePower : awayPower;
+      insights.push({
+        type: "club_power",
+        icon: "💎",
+        impact: powerGap > 0 ? "positive_home" : "positive_away",
+        title: `Slight squad quality edge: ${slight}`,
+        detail: `${slight} (Power ${slightPwr.rating}/100) have a modest edge in squad value and European pedigree. ${slightPwr.pedigree}. This could be the difference in a tight match.`,
+      });
+    } else if (homePower.rating >= 80 && awayPower.rating >= 80) {
+      insights.push({
+        type: "club_power",
+        icon: "💎",
+        impact: "neutral",
+        title: "Two European heavyweights",
+        detail: `${home} (Power ${homePower.rating}) vs ${away} (Power ${awayPower.rating}) — both are elite clubs with deep squads and serious European pedigree. Expect a high-quality, tactically complex match. Small margins will decide it.`,
+      });
+    }
+  } else if (homePos && awayPos) {
+    // Same domestic league — positions ARE comparable
     const gap = awayPos - homePos;
     if (gap >= 10) {
       insights.push({
@@ -335,7 +573,7 @@ function generateContextInsights(fixture, allFixtures) {
         icon: "📊",
         impact: "positive_home",
         title: "Large league position gap",
-        detail: `${home} (${homePos}${ordinal(homePos)}) sit significantly higher than ${away} (${awayPos}${ordinal(awayPos)}). A ${gap}-position gap suggests a clear quality difference.`,
+        detail: `${home} (${homePos}${ordinal(homePos)}) sit significantly higher than ${away} (${awayPos}${ordinal(awayPos)}) in the ${fixture.league}. A ${gap}-position gap suggests a clear quality difference.`,
       });
     } else if (gap <= -10) {
       insights.push({
@@ -343,7 +581,7 @@ function generateContextInsights(fixture, allFixtures) {
         icon: "📊",
         impact: "positive_away",
         title: "Away team ranked much higher",
-        detail: `${away} (${awayPos}${ordinal(awayPos)}) sit significantly higher than ${home} (${homePos}${ordinal(homePos)}). Despite playing away, the quality gap is notable.`,
+        detail: `${away} (${awayPos}${ordinal(awayPos)}) sit significantly higher than ${home} (${homePos}${ordinal(homePos)}) in the ${fixture.league}. Despite playing away, the quality gap is notable.`,
       });
     } else if (Math.abs(gap) <= 2) {
       insights.push({
@@ -351,7 +589,7 @@ function generateContextInsights(fixture, allFixtures) {
         icon: "📊",
         impact: "neutral",
         title: "Closely matched teams",
-        detail: `${home} (${homePos}${ordinal(homePos)}) and ${away} (${awayPos}${ordinal(awayPos)}) are very close in the standings. Expect a competitive match — draws and tight margins more likely.`,
+        detail: `${home} (${homePos}${ordinal(homePos)}) and ${away} (${awayPos}${ordinal(awayPos)}) are very close in the ${fixture.league} standings. Expect a competitive match.`,
       });
     }
   }
@@ -581,6 +819,27 @@ export function generateOpportunities(fixtures, allowedMarkets) {
   fixtures.forEach(fix => {
     const allMarkets = Object.values(MARKET_CATEGORIES).flatMap(c => c.markets);
     const markets = allMarkets.filter(m => !allowedMarkets || allowedMarkets.has(m));
+
+    // Compute league strength differential for European competitions
+    // This is critical: Inter Milan (Serie A) vs a Swedish team = huge quality gap
+    const isEuropean = EUROPEAN_COMPS.includes(fix.league);
+    if (isEuropean) {
+      const homeDomestic = getTeamDomesticLeague(fix.home, fixtures);
+      const awayDomestic = getTeamDomesticLeague(fix.away, fixtures);
+      fix._homeLeagueCoeff = (homeDomestic ? getLeagueStrength(homeDomestic) : DEFAULT_LEAGUE).coefficient;
+      fix._awayLeagueCoeff = (awayDomestic ? getLeagueStrength(awayDomestic) : DEFAULT_LEAGUE).coefficient;
+      fix._leagueStrengthDiff = fix._homeLeagueCoeff - fix._awayLeagueCoeff; // positive = home from stronger league
+
+      // Club Power Rating: squad value + European pedigree
+      // Real Madrid (98) vs Bodø/Glimt (42) = +56 → significant home edge
+      // Real Madrid (98) vs Inter (84) = +14 → slight home edge
+      const homePower = getClubPowerRating(fix.home);
+      const awayPower = getClubPowerRating(fix.away);
+      fix._powerRatingDiff = homePower.rating - awayPower.rating; // positive = home stronger
+    } else {
+      fix._leagueStrengthDiff = 0; // Same league, no adjustment needed
+      fix._powerRatingDiff = 0;    // Power ratings only apply in European comps
+    }
 
     // Generate context insights for this fixture (pass all fixtures for cross-reference)
     const contextInsights = generateContextInsights(fix, fixtures);
