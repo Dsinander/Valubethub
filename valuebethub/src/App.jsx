@@ -5,6 +5,7 @@ import TipsPage from "./TipsPage.jsx";
 import LeagueTipsPage from "./LeagueTips.jsx";
 import MatchPreviewPage from "./MatchPreview.jsx";
 import ResultsPage from "./ResultsPage.jsx";
+import DailySlipsPage from "./DailySlips.jsx";
 import { AuthModal, UserMenu, AUTH_CSS } from "./Auth.jsx";
 import { DashboardPage, UpgradePage, SettingsPage } from "./Dashboard.jsx";
 import { supabase, getProfile, signOut, saveSlip, canSaveSlip } from "./supabase.js";
@@ -217,12 +218,15 @@ export default function App() {
 
           <div className="nav-tabs">
             <button className={`nav-tab ${currentPage === null ? "active" : ""}`} onClick={() => goTo(null)}>⚙️ Generator</button>
+            <button className={`nav-tab ${currentPage === "daily-slips" ? "active" : ""}`} onClick={() => goTo("daily-slips")}>🔥 Daily Slips</button>
             <button className={`nav-tab ${currentPage === "tips" ? "active" : ""}`} onClick={() => goTo("tips")}>🎯 Tips</button>
             <button className={`nav-tab ${currentPage === "league-tips" ? "active" : ""}`} onClick={() => goTo("league-tips")}>⚽ Leagues</button>
             <button className={`nav-tab ${currentPage === "previews" ? "active" : ""}`} onClick={() => goTo("previews")}>📋 Previews</button>
             <button className={`nav-tab ${currentPage === "results" ? "active" : ""}`} onClick={() => goTo("results")}>📊 Results</button>
             {user && <button className={`nav-tab ${currentPage === "dashboard" ? "active" : ""}`} onClick={() => goTo("dashboard")}>💾 My Slips</button>}
           </div>
+
+          {currentPage === "daily-slips" && <DailySlipsPage />}
 
           {currentPage === "tips" && <TipsPage />}
           {currentPage === "league-tips" && <LeagueTipsPage onMatchPreview={goToMatchPreview} />}
@@ -232,7 +236,7 @@ export default function App() {
           {currentPage === "upgrade" && <UpgradePage profile={profile} />}
           {currentPage === "settings" && <SettingsPage profile={profile} />}
 
-          {currentPage && !["tips","league-tips","previews","results","dashboard","upgrade","settings"].includes(currentPage) && (
+          {currentPage && !["daily-slips","tips","league-tips","previews","results","dashboard","upgrade","settings"].includes(currentPage) && (
             <>
               <button className="back-btn" onClick={() => goTo(null)}>← Back to Generator</button>
               {currentPage === "about" && <AboutPage />}
@@ -272,6 +276,7 @@ export default function App() {
           <div className="site-footer">
             <div className="footer-links">
               <button className="footer-link" onClick={() => goTo("tips")}>Today's Tips</button>
+              <button className="footer-link" onClick={() => goTo("daily-slips")}>Daily Slips</button>
               <button className="footer-link" onClick={() => goTo("league-tips")}>League Tips</button>
               <button className="footer-link" onClick={() => goTo("previews")}>Match Previews</button>
               <button className="footer-link" onClick={() => goTo("results")}>Results & Track Record</button>
