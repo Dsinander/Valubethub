@@ -280,7 +280,7 @@ export default function TipsPage() {
           {tips.map((tip, i) => {
             const edge = parseFloat(tip.edge);
             const conf = getConfidence(edge, tip.aiProbability);
-            const reasoning = generateReasoning(tip);
+            const reasoning = tip.narrative || generateReasoning(tip);
             const isExpanded = expandedTip === tip.id;
 
             return (
