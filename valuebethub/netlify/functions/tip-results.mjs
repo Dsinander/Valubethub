@@ -286,7 +286,5 @@ export default async (req) => {
 };
 
 export const config = {
-  path: "/api/tip-results",
-  // Run automatically every 4 hours
   schedule: "0 */4 * * *",
 };
