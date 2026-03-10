@@ -293,9 +293,9 @@ export default function TipsPage() {
                 {/* Match header */}
                 <div className="tip-match-row">
                   <div className="tip-match-teams">
-                    <span className="tip-team-name">{tip.home}</span>
+                    <span className="tip-team-name">{tip.homeLogo && <img src={tip.homeLogo} style={{ width: 20, height: 20, objectFit: "contain", verticalAlign: "middle", marginRight: 6, borderRadius: 2 }} alt="" />}{tip.home}</span>
                     <span className="tip-vs">vs</span>
-                    <span className="tip-team-name">{tip.away}</span>
+                    <span className="tip-team-name">{tip.away}{tip.awayLogo && <img src={tip.awayLogo} style={{ width: 20, height: 20, objectFit: "contain", verticalAlign: "middle", marginLeft: 6, borderRadius: 2 }} alt="" />}</span>
                   </div>
                   <div className="tip-match-meta">
                     <span>{tip.leagueFlag} {tip.league}</span>
