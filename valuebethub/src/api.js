@@ -612,40 +612,64 @@ export function buildSlip(opportunities, numSelections, riskLevel, targetOdds, t
 
   scored.sort((a, b) => b._score - a._score);
 
+  // Count unique matches available
+  const uniqueMatches = new Set(scored.map(o => `${o.home}-${o.away}`)).size;
+  const effectiveSelections = Math.min(numSelections, scored.length);
+
+  // ─── STRATEGY: Two-pass selection ──────────────────────────────────
+  // Pass 1: Try to hit target odds with one bet per match
+  // Pass 2: If not enough unique matches, allow multiple DIFFERENT markets
+  //         from the same match (e.g. "Liverpool Win" + "Over 2.5" is fine,
+  //         but not two 1X2 bets from the same match)
+
   const selected = [];
-  const usedMatches = new Set();
+  const usedMatches = new Set();        // track match keys
+  const usedMarketPerMatch = {};        // track market TYPES per match
   let currentCombinedOdds = 1;
 
+  // Helper: get market category for a market name
+  const getMarketCategory = (market) => {
+    if (market.includes("Home Win") || market.includes("Away Win") || market.includes("Draw")) return "1X2";
+    if (market.includes("Over") || market.includes("Under")) return "OU";
+    if (market.includes("BTTS")) return "BTTS";
+    if (market.includes("1X") || market.includes("X2") || market.includes("12")) return "DC";
+    if (market.includes("Corner")) return "CORNERS";
+    return "OTHER";
+  };
+
+  // Pass 1: One bet per match, try to approach target
   for (const opp of scored) {
-    if (selected.length >= numSelections) break;
-    const key = `${opp.home}-${opp.away}`;
-    if (usedMatches.has(key)) continue;
+    if (selected.length >= effectiveSelections) break;
+    const matchKey = `${opp.home}-${opp.away}`;
+    if (usedMatches.has(matchKey)) continue;
 
+    // Soft odds check — don't skip good bets just because odds don't perfectly fit
     const wouldBe = currentCombinedOdds * opp.bookmakerOdds;
-    const remainingLegs = numSelections - selected.length - 1;
+    if (selected.length > 0 && wouldBe > targetOdds * 3 && riskLevel !== "aggressive") continue;
 
-    if (remainingLegs > 0) {
-      const neededPerRemaining = Math.pow(targetOdds / wouldBe, 1 / remainingLegs);
-      if (neededPerRemaining < 1.05) continue;
-      if (neededPerRemaining > 6.0 && riskLevel !== "aggressive") continue;
-    } else {
-      const ratio = wouldBe / targetOdds;
-      if (ratio > 2.5 || ratio < 0.3) continue;
-    }
-
-    usedMatches.add(key);
+    usedMatches.add(matchKey);
+    usedMarketPerMatch[matchKey] = new Set([getMarketCategory(opp.market)]);
     selected.push(opp);
     currentCombinedOdds = wouldBe;
   }
 
-  // Fill remaining if needed (still respects probability minimums)
-  if (selected.length < numSelections) {
+  // Pass 2: If we need more selections than unique matches,
+  // add DIFFERENT market types from already-used matches
+  if (selected.length < effectiveSelections && uniqueMatches < numSelections) {
     for (const opp of scored) {
-      if (selected.length >= numSelections) break;
-      const key = `${opp.home}-${opp.away}`;
-      if (usedMatches.has(key)) continue;
-      usedMatches.add(key);
+      if (selected.length >= effectiveSelections) break;
+      const matchKey = `${opp.home}-${opp.away}`;
+      const cat = getMarketCategory(opp.market);
+
+      // Skip if we already used this exact market type on this match
+      if (usedMarketPerMatch[matchKey]?.has(cat)) continue;
+      // Skip if this exact bet is already selected
+      if (selected.find(s => s.id === opp.id)) continue;
+
+      if (!usedMarketPerMatch[matchKey]) usedMarketPerMatch[matchKey] = new Set();
+      usedMarketPerMatch[matchKey].add(cat);
       selected.push(opp);
+      currentCombinedOdds *= opp.bookmakerOdds;
     }
   }
 
@@ -659,38 +683,67 @@ export function buildSlip(opportunities, numSelections, riskLevel, targetOdds, t
   const maxMatches = new Set(opportunities.map(o => `${o.home}-${o.away}`)).size;
   const suggestions = [];
 
-  if (!targetHit || slipWinProb < 0.03) {
-    if (numSelections < maxMatches) {
-      const moreLegs = Math.min(maxMatches, numSelections + 2);
-      const perLegWithMore = Math.pow(targetOdds, 1 / moreLegs);
-      if (perLegWithMore < targetPerLeg) {
-        suggestions.push({
-          icon: "➕", title: "Add more selections",
-          detail: `With ${moreLegs} legs instead of ${numSelections}, each needs ${perLegWithMore.toFixed(2)}x (vs ${targetPerLeg.toFixed(2)}x now).`,
-          action: `try_legs_${moreLegs}`,
-        });
-      }
+  // Warn if not enough matches for unique-per-match selections
+  if (numSelections > maxMatches && maxMatches > 0) {
+    suggestions.push({
+      icon: "ℹ️", title: `Only ${maxMatches} matches available`,
+      detail: `You asked for ${numSelections} selections but there are only ${maxMatches} unique matches. We've mixed different market types from the same matches to build your slip.`,
+    });
+  }
+
+  if (!targetHit) {
+    // Target too ambitious
+    if (targetOdds > 20) {
+      const realisticTarget = Math.round(parseFloat(stake) * Math.min(combinedOdds, 10));
+      suggestions.push({
+        icon: "⚠️", title: "Target may be too ambitious",
+        detail: `€${targetWinnings} from €${stake} needs ${targetOdds.toFixed(0)}x odds. With quality bets, we reached ${combinedOdds}x. Consider a target of €${realisticTarget} or increasing your stake.`,
+        action: `try_target_${realisticTarget}`,
+      });
     }
     if (targetOdds > 5) {
-      const neededStake = Math.ceil(parseFloat(targetWinnings || 500) / 5);
+      const neededStake = Math.ceil(parseFloat(targetWinnings || 500) / Math.max(combinedOdds, 5));
       suggestions.push({
         icon: "💰", title: "Increase your stake",
-        detail: `€${neededStake} stake would only need 5x odds to hit your target.`,
+        detail: `€${neededStake} stake at ${combinedOdds}x odds would return €${Math.round(neededStake * combinedOdds)}.`,
         action: `try_stake_${neededStake}`,
+      });
+    }
+    if (numSelections < maxMatches && numSelections < 6) {
+      const moreLegs = Math.min(maxMatches, numSelections + 2);
+      suggestions.push({
+        icon: "➕", title: "Add more selections",
+        detail: `More legs = higher combined odds. With ${moreLegs} selections, each leg needs lower individual odds.`,
+        action: `try_legs_${moreLegs}`,
       });
     }
     if (riskLevel === "conservative" && targetPerLeg > 2.0) {
       suggestions.push({
         icon: "⚠️", title: "Risk level mismatch",
-        detail: `Your target requires ${targetPerLeg.toFixed(2)}x per leg, but "Safe" mode prefers under 2.0x. This slip isn't truly "safe."`,
+        detail: `Your target needs ${targetPerLeg.toFixed(2)}x per leg — that's not conservative. Switch to Balanced or Bold to reach higher odds.`,
       });
     }
+  }
+
+  if (slipWinProb < 0.03 && selected.length > 1) {
+    suggestions.push({
+      icon: "⚠️", title: `Win probability is ${(slipWinProb * 100).toFixed(1)}%`,
+      detail: `That's roughly 1 in ${Math.round(1 / Math.max(slipWinProb, 0.001))} chance. Consider fewer legs for better odds of winning.`,
+      action: selected.length > 2 ? `try_legs_${selected.length - 1}` : undefined,
+    });
   }
 
   if (targetHit && slipWinProb > 0.05 && avgEdge > 0) {
     suggestions.push({
       icon: "✅", title: "Good setup",
-      detail: `Target is realistic. ${selected.filter(m => m.isValue).length} value bets with positive edge.`,
+      detail: `Target reached at ${combinedOdds}x. ${selected.filter(m => m.isValue).length} value bets with positive edge. Win probability: ${(slipWinProb * 100).toFixed(1)}%.`,
+    });
+  }
+
+  if (targetHit && avgEdge > 0 && slipWinProb <= 0.05) {
+    suggestions.push({
+      icon: "✅", title: "Target reached — but high risk",
+      detail: `Odds of ${combinedOdds}x hit your target with ${selected.filter(m => m.isValue).length} value bets, but win probability is only ${(slipWinProb * 100).toFixed(1)}%. Consider this an entertainment bet, not an investment.`,
     });
   }
 
