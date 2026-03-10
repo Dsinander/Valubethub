@@ -4,13 +4,12 @@ import { AboutPage, PrivacyPage, TermsPage, ResponsibleGamblingPage, AffiliateDi
 import TipsPage from "./TipsPage.jsx";
 import LeagueTipsPage from "./LeagueTips.jsx";
 import MatchPreviewPage from "./MatchPreview.jsx";
+import ResultsPage from "./ResultsPage.jsx";
 import { AuthModal, UserMenu, AUTH_CSS } from "./Auth.jsx";
 import { DashboardPage, UpgradePage, SettingsPage } from "./Dashboard.jsx";
 import { supabase, getProfile, signOut, saveSlip, canSaveSlip } from "./supabase.js";
+import { AffiliateSlipButton, AffiliateBanner, AFFILIATE_CSS } from "./AffiliateCTA.jsx";
 
-// ═══════════════════════════════════════════════════════════════════════
-// STYLES
-// ═══════════════════════════════════════════════════════════════════════
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 :root{--navy-950:#131a2b;--navy-900:#182032;--navy-800:#1e2840;--navy-700:#253350;--navy-600:#2f4060;--navy-400:#5572a0;--gold-500:#d4af37;--gold-400:#e5c44e;--gold-300:#f0d56a;--green-500:#22c55e;--green-400:#4ade80;--red-500:#ef4444;--red-400:#f87171;--blue-500:#3b82f6;--orange-500:#f59e0b;--text-primary:#f1f5f9;--text-secondary:#a0aec0;--text-muted:#718096;--glass:rgba(24,32,50,0.75);--glass-border:rgba(212,175,55,0.15)}
@@ -127,7 +126,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--navy-950);color:var(--tex
 @media(max-width:640px){.nav-tab{padding:8px 12px;font-size:12px}}
 `;
 
-// ─── ANALYSIS BREAKDOWN ──────────────────────────────────────────────
 function AnalysisBreakdown({ sel }) {
   const a = sel.analysis;
   if (!a) return null;
@@ -143,9 +141,6 @@ function AnalysisBreakdown({ sel }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// MAIN APP
-// ═══════════════════════════════════════════════════════════════════════
 export default function App() {
   const [fixtures, setFixtures] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
@@ -166,8 +161,6 @@ export default function App() {
   const [slip, setSlip] = useState(null);
   const [expandedCards, setExpandedCards] = useState({});
   const [matchPreviewTarget, setMatchPreviewTarget] = useState(null);
-
-  // Auth state
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [showAuth, setShowAuth] = useState(false);
@@ -205,10 +198,9 @@ export default function App() {
 
   return (
     <>
-      <style>{CSS}{PAGE_CSS}{AUTH_CSS}</style>
+      <style>{CSS}{PAGE_CSS}{AUTH_CSS}{AFFILIATE_CSS}</style>
       <div className="app">
         <div className="inner">
-          {/* ── HEADER ────────────────── */}
           <div className="header">
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
               {user && profile ? (<UserMenu profile={profile} onNavigate={goTo} onSignOut={async () => { await signOut(); setUser(null); setProfile(null); goTo(null); }} />) : (<button onClick={() => setShowAuth(true)} style={{ padding: "7px 16px", borderRadius: 10, border: "1px solid var(--gold-500)", background: "rgba(212,175,55,0.1)", color: "var(--gold-400)", fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Sign In</button>)}
@@ -220,24 +212,24 @@ export default function App() {
             <div className="header-sub">AI-Powered Smart Bet Generator</div>
           </div>
 
-          {/* ── NAV TABS ──────────────── */}
           <div className="nav-tabs">
             <button className={`nav-tab ${currentPage === null ? "active" : ""}`} onClick={() => goTo(null)}>⚙️ Generator</button>
             <button className={`nav-tab ${currentPage === "tips" ? "active" : ""}`} onClick={() => goTo("tips")}>🎯 Tips</button>
             <button className={`nav-tab ${currentPage === "league-tips" ? "active" : ""}`} onClick={() => goTo("league-tips")}>⚽ Leagues</button>
             <button className={`nav-tab ${currentPage === "previews" ? "active" : ""}`} onClick={() => goTo("previews")}>📋 Previews</button>
-            {user && <button className={`nav-tab ${currentPage === "dashboard" ? "active" : ""}`} onClick={() => goTo("dashboard")}>📊 My Slips</button>}
+            <button className={`nav-tab ${currentPage === "results" ? "active" : ""}`} onClick={() => goTo("results")}>📊 Results</button>
+            {user && <button className={`nav-tab ${currentPage === "dashboard" ? "active" : ""}`} onClick={() => goTo("dashboard")}>💾 My Slips</button>}
           </div>
 
-          {/* ── CONTENT PAGES ─────────── */}
           {currentPage === "tips" && <TipsPage />}
           {currentPage === "league-tips" && <LeagueTipsPage onMatchPreview={goToMatchPreview} />}
           {currentPage === "previews" && <MatchPreviewPage matchTip={matchPreviewTarget} allFixtures={fixtures} onBack={() => goTo(null)} />}
+          {currentPage === "results" && <ResultsPage />}
           {currentPage === "dashboard" && user && <DashboardPage user={user} profile={profile} onNavigate={goTo} />}
           {currentPage === "upgrade" && <UpgradePage profile={profile} />}
           {currentPage === "settings" && <SettingsPage profile={profile} />}
 
-          {currentPage && !["tips","league-tips","previews","dashboard","upgrade","settings"].includes(currentPage) && (
+          {currentPage && !["tips","league-tips","previews","results","dashboard","upgrade","settings"].includes(currentPage) && (
             <>
               <button className="back-btn" onClick={() => goTo(null)}>← Back to Generator</button>
               {currentPage === "about" && <AboutPage />}
@@ -251,7 +243,6 @@ export default function App() {
             </>
           )}
 
-          {/* ── MAIN GENERATOR ────────── */}
           {!currentPage && (<>
           {dataLoading && (<div className="data-status"><div className="spinner" /><div style={{ fontSize: 16, fontWeight: 600 }}>Loading today's fixtures...</div><div style={{ fontSize: 13, marginTop: 8 }}>Fetching real match data, odds, form, and injuries</div></div>)}
           {dataError && !fixtures.length && (<div className="card" style={{ textAlign: "center", color: "var(--red-400)" }}><div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Failed to load match data</div><div style={{ fontSize: 13, color: "var(--text-muted)" }}>{dataError}</div><button className="gen-btn" style={{ maxWidth: 200, margin: "16px auto 0" }} onClick={() => window.location.reload()}>Retry</button></div>)}
@@ -269,18 +260,18 @@ export default function App() {
 
           {phase === "results" && slip && (<>
             <div className="card"><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 16 }}><div><div className="card-title" style={{ marginBottom: 4 }}>{slip.selections.length === 1 ? "AI-Generated Single Bet" : "AI-Generated Accumulator"}</div><div style={{ fontSize: 13, color: "var(--text-muted)" }}>{slip.selections.length} selections · {slip.valueCount} value bets · Real bookmaker odds</div></div><div className={`ev-badge ${evClass}`}>Avg Edge: {slip.avgEdge > 0 ? "+" : ""}{slip.avgEdge}% {evLabel}</div></div>{slip.selections.map((sel, i) => (<div key={sel.id} className="sel-card" style={{ animationDelay: `${i * 0.1}s` }}><div className="sel-header"><div style={{ flex: 1 }}><div className="sel-match">⚽ {sel.home} vs {sel.away}</div><div className="sel-meta"><span className="sel-league">{sel.leagueFlag} {sel.league} · {sel.day} {sel.time}</span><span className="sel-market">{sel.market}</span></div><div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>AI prob: <span style={{ color: "var(--text-primary)", fontFamily: "'JetBrains Mono',monospace" }}>{sel.aiProbability}%</span> · Book implied: <span style={{ fontFamily: "'JetBrains Mono',monospace" }}>{sel.impliedProbability}%</span></div></div><div style={{ textAlign: "right" }}><div className="sel-odds">{sel.bookmakerOdds}</div><div className={`sel-edge ${parseFloat(sel.edge) > 0 ? "edge-pos" : "edge-neg"}`}>{parseFloat(sel.edge) > 0 ? "+" : ""}{sel.edge}%</div></div></div><button className="analysis-toggle" onClick={() => setExpandedCards(p => ({ ...p, [sel.id]: !p[sel.id] }))}>{expandedCards[sel.id] ? "▾ Hide analysis" : "▸ Show full analysis"}</button>{expandedCards[sel.id] && <AnalysisBreakdown sel={sel} />}</div>))}</div>
-            <div className="summary">{slip.targetOdds && (<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 8, marginBottom: 16, background: slip.targetHit ? "rgba(34,197,94,0.06)" : "rgba(245,158,11,0.06)", border: `1px solid ${slip.targetHit ? "rgba(34,197,94,0.12)" : "rgba(245,158,11,0.12)"}`, fontSize: 13, flexWrap: "wrap", gap: 8 }}><div style={{ color: "var(--text-secondary)" }}>Target: <span style={{ color: "var(--gold-400)", fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>€{targetWinnings}</span></div><div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 600, color: slip.targetHit ? "var(--green-400)" : "var(--orange-500)" }}>{slip.targetHit ? `✓ Slip at ${slip.combinedOdds}x → €${potentialReturn}` : `Slip at ${slip.combinedOdds}x`}</div></div>)}<div className="summary-grid"><div className="summary-item"><div className="summary-label">Combined Odds</div><div className="summary-value" style={{ color: "var(--text-primary)" }}>{slip.combinedOdds}x</div></div><div className="summary-item"><div className="summary-label">Potential Return</div><div className="summary-value" style={{ color: "var(--gold-400)" }}>€{potentialReturn.toLocaleString()}</div></div><div className="summary-item"><div className="summary-label">Profit</div><div className="summary-value" style={{ color: "var(--green-400)" }}>€{profit.toLocaleString()}</div></div><div className="summary-item"><div className="summary-label">Win Probability</div><div className="summary-value" style={{ color: winProbColor }}>{winProb}%</div><div className="conf-bar"><div className="conf-fill" style={{ width: `${Math.min(winProb * 2.5, 100)}%`, background: winProbColor }} /></div></div></div><div className="risk-warning" style={{ background: winProb < 10 ? "rgba(239,68,68,0.08)" : winProb < 25 ? "rgba(245,158,11,0.08)" : "rgba(34,197,94,0.08)", color: winProb < 10 ? "var(--red-400)" : winProb < 25 ? "var(--orange-500)" : "var(--green-400)", border: `1px solid ${winProb < 10 ? "rgba(239,68,68,0.15)" : winProb < 25 ? "rgba(245,158,11,0.15)" : "rgba(34,197,94,0.15)"}` }}>{winProb < 5 && `⚠️ High risk — roughly 1 in ${Math.round(100 / Math.max(winProb, 0.1))} chance.`}{winProb >= 5 && winProb < 15 && `⚠️ About 1 in ${Math.round(100 / winProb)} chance. Edges favor you over volume.`}{winProb >= 15 && winProb < 30 && `Moderate risk — ~1 in ${Math.round(100 / winProb)} chance.`}{winProb >= 30 && `Solid probability. ${slip.avgEdge > 0 ? "Positive edge detected." : ""}`}</div>{slip.suggestions?.length > 0 && (<div style={{ marginBottom: 16 }}><div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gold-500)", marginBottom: 10 }}>💡 AI Advisor</div>{slip.suggestions.map((sug, i) => (<div key={i} className="suggestion-card" style={{ background: sug.icon === "⚠️" ? "rgba(239,68,68,0.06)" : sug.icon === "✅" ? "rgba(34,197,94,0.06)" : "rgba(212,175,55,0.06)", border: `1px solid ${sug.icon === "⚠️" ? "rgba(239,68,68,0.12)" : sug.icon === "✅" ? "rgba(34,197,94,0.12)" : "rgba(212,175,55,0.12)"}` }} onClick={() => { if (!sug.action) return; const v = sug.action.split("_")[2]; if (sug.action.startsWith("try_legs")) setNumSelections(v); else if (sug.action.startsWith("try_stake")) setStake(v); else if (sug.action.startsWith("try_target")) setTargetWinnings(v); setPhase("input"); setSlip(null); }}><span style={{ fontSize: 18 }}>{sug.icon}</span><div><div className="suggestion-title">{sug.title}</div><div className="suggestion-detail">{sug.detail}</div>{sug.action && <div className="suggestion-action">Click to apply →</div>}</div></div>))}</div>)}<div className="action-buttons"><button className="action-btn action-primary" onClick={handleGenerate}>🔄 New Slip</button><button className="action-btn action-secondary" onClick={() => { setPhase("input"); setSlip(null); }}>⚙️ Parameters</button>{user ? (<button className="action-btn action-secondary" onClick={handleSaveSlip} disabled={saveStatus === "saving" || saveStatus === "saved"} style={saveStatus === "saved" ? { borderColor: "var(--green-500)", color: "var(--green-400)" } : {}}>{saveStatus === "saving" ? "💾 Saving..." : saveStatus === "saved" ? "✓ Saved!" : saveStatus === "limit" ? "🔒 Limit" : saveStatus === "error" ? "❌ Error" : "💾 Save"}</button>) : (<button className="action-btn action-secondary" onClick={() => setShowAuth(true)}>💾 Sign in to Save</button>)}</div>{saveStatus === "limit" && (<div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 10, background: "rgba(212,175,55,0.06)", border: "1px solid rgba(212,175,55,0.15)", fontSize: 13, color: "var(--text-secondary)", marginTop: 12, cursor: "pointer" }} onClick={() => goTo("upgrade")}><span>Free plan limit reached.</span><span style={{ color: "var(--gold-400)", fontWeight: 600 }}>Upgrade to Premium →</span></div>)}</div>
+            <div className="summary">{slip.targetOdds && (<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 8, marginBottom: 16, background: slip.targetHit ? "rgba(34,197,94,0.06)" : "rgba(245,158,11,0.06)", border: `1px solid ${slip.targetHit ? "rgba(34,197,94,0.12)" : "rgba(245,158,11,0.12)"}`, fontSize: 13, flexWrap: "wrap", gap: 8 }}><div style={{ color: "var(--text-secondary)" }}>Target: <span style={{ color: "var(--gold-400)", fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>€{targetWinnings}</span></div><div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 600, color: slip.targetHit ? "var(--green-400)" : "var(--orange-500)" }}>{slip.targetHit ? `✓ Slip at ${slip.combinedOdds}x → €${potentialReturn}` : `Slip at ${slip.combinedOdds}x`}</div></div>)}<div className="summary-grid"><div className="summary-item"><div className="summary-label">Combined Odds</div><div className="summary-value" style={{ color: "var(--text-primary)" }}>{slip.combinedOdds}x</div></div><div className="summary-item"><div className="summary-label">Potential Return</div><div className="summary-value" style={{ color: "var(--gold-400)" }}>€{potentialReturn.toLocaleString()}</div></div><div className="summary-item"><div className="summary-label">Profit</div><div className="summary-value" style={{ color: "var(--green-400)" }}>€{profit.toLocaleString()}</div></div><div className="summary-item"><div className="summary-label">Win Probability</div><div className="summary-value" style={{ color: winProbColor }}>{winProb}%</div><div className="conf-bar"><div className="conf-fill" style={{ width: `${Math.min(winProb * 2.5, 100)}%`, background: winProbColor }} /></div></div></div><div className="risk-warning" style={{ background: winProb < 10 ? "rgba(239,68,68,0.08)" : winProb < 25 ? "rgba(245,158,11,0.08)" : "rgba(34,197,94,0.08)", color: winProb < 10 ? "var(--red-400)" : winProb < 25 ? "var(--orange-500)" : "var(--green-400)", border: `1px solid ${winProb < 10 ? "rgba(239,68,68,0.15)" : winProb < 25 ? "rgba(245,158,11,0.15)" : "rgba(34,197,94,0.15)"}` }}>{winProb < 5 && `⚠️ High risk — roughly 1 in ${Math.round(100 / Math.max(winProb, 0.1))} chance.`}{winProb >= 5 && winProb < 15 && `⚠️ About 1 in ${Math.round(100 / winProb)} chance. Edges favor you over volume.`}{winProb >= 15 && winProb < 30 && `Moderate risk — ~1 in ${Math.round(100 / winProb)} chance.`}{winProb >= 30 && `Solid probability. ${slip.avgEdge > 0 ? "Positive edge detected." : ""}`}</div>{slip.suggestions?.length > 0 && (<div style={{ marginBottom: 16 }}><div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1.5, color: "var(--gold-500)", marginBottom: 10 }}>💡 AI Advisor</div>{slip.suggestions.map((sug, i) => (<div key={i} className="suggestion-card" style={{ background: sug.icon === "⚠️" ? "rgba(239,68,68,0.06)" : sug.icon === "✅" ? "rgba(34,197,94,0.06)" : "rgba(212,175,55,0.06)", border: `1px solid ${sug.icon === "⚠️" ? "rgba(239,68,68,0.12)" : sug.icon === "✅" ? "rgba(34,197,94,0.12)" : "rgba(212,175,55,0.12)"}` }} onClick={() => { if (!sug.action) return; const v = sug.action.split("_")[2]; if (sug.action.startsWith("try_legs")) setNumSelections(v); else if (sug.action.startsWith("try_stake")) setStake(v); else if (sug.action.startsWith("try_target")) setTargetWinnings(v); setPhase("input"); setSlip(null); }}><span style={{ fontSize: 18 }}>{sug.icon}</span><div><div className="suggestion-title">{sug.title}</div><div className="suggestion-detail">{sug.detail}</div>{sug.action && <div className="suggestion-action">Click to apply →</div>}</div></div>))}</div>)}<div className="action-buttons"><button className="action-btn action-primary" onClick={handleGenerate}>🔄 New Slip</button><button className="action-btn action-secondary" onClick={() => { setPhase("input"); setSlip(null); }}>⚙️ Parameters</button>{user ? (<button className="action-btn action-secondary" onClick={handleSaveSlip} disabled={saveStatus === "saving" || saveStatus === "saved"} style={saveStatus === "saved" ? { borderColor: "var(--green-500)", color: "var(--green-400)" } : {}}>{saveStatus === "saving" ? "💾 Saving..." : saveStatus === "saved" ? "✓ Saved!" : saveStatus === "limit" ? "🔒 Limit" : saveStatus === "error" ? "❌ Error" : "💾 Save"}</button>) : (<button className="action-btn action-secondary" onClick={() => setShowAuth(true)}>💾 Sign in to Save</button>)}</div>{saveStatus === "limit" && (<div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 10, background: "rgba(212,175,55,0.06)", border: "1px solid rgba(212,175,55,0.15)", fontSize: 13, color: "var(--text-secondary)", marginTop: 12, cursor: "pointer" }} onClick={() => goTo("upgrade")}><span>Free plan limit reached.</span><span style={{ color: "var(--gold-400)", fontWeight: 600 }}>Upgrade to Premium →</span></div>)}<AffiliateSlipButton /></div>
           </>)}
 
           <div className="disclaimer">⚠️ Gambling involves risk. Predictions are statistical, not guaranteed.<br />Always bet responsibly. 18+ only.</div>
           </>)}
 
-          {/* ── FOOTER ───────────────── */}
           <div className="site-footer">
             <div className="footer-links">
               <button className="footer-link" onClick={() => goTo("tips")}>Today's Tips</button>
               <button className="footer-link" onClick={() => goTo("league-tips")}>League Tips</button>
               <button className="footer-link" onClick={() => goTo("previews")}>Match Previews</button>
+              <button className="footer-link" onClick={() => goTo("results")}>Results & Track Record</button>
               <button className="footer-link" onClick={() => goTo("how-it-works")}>How It Works</button>
               <button className="footer-link" onClick={() => goTo("strategy")}>Betting Strategy</button>
               <button className="footer-link" onClick={() => goTo("bankroll")}>Bankroll Management</button>
