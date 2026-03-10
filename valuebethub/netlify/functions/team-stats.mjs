@@ -39,7 +39,7 @@ async function apiFetch(endpoint) {
 const delay = (ms) => new Promise(r => setTimeout(r, ms));
 
 async function supabaseUpsert(data) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/team_stats`, {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/team_stats?on_conflict=team_id,season`, {
     method: "POST",
     headers: {
       "apikey": SUPABASE_KEY,
