@@ -263,6 +263,43 @@ function transformFixture(fixture, prediction, injuries, odds) {
           if (val.value === "Over 10.5") parsedOdds["Over 10.5 Corners"] = oddVal;
           if (val.value === "Under 10.5") parsedOdds["Under 10.5 Corners"] = oddVal;
         }
+        // ─── NEW MARKETS ─────────────────────────────────────────
+        // Combo: 1X2 + Over/Under 2.5
+        if (bet.name === "Home/Away and Over/Under" || bet.name === "Match Winner and Over/Under 2.5") {
+          if (val.value === "Home & Over 2.5")  parsedOdds["Home Win & Over 2.5"] = oddVal;
+          if (val.value === "Home & Under 2.5") parsedOdds["Home Win & Under 2.5"] = oddVal;
+          if (val.value === "Draw & Over 2.5")  parsedOdds["Draw & Over 2.5"] = oddVal;
+          if (val.value === "Draw & Under 2.5") parsedOdds["Draw & Under 2.5"] = oddVal;
+          if (val.value === "Away & Over 2.5")  parsedOdds["Away Win & Over 2.5"] = oddVal;
+          if (val.value === "Away & Under 2.5") parsedOdds["Away Win & Under 2.5"] = oddVal;
+        }
+        // Combo: 1X2 + BTTS
+        if (bet.name === "Match Winner and Both Teams Score" || bet.name === "Result/Both Teams Score") {
+          if (val.value === "Home & Yes")  parsedOdds["Home Win & BTTS Yes"] = oddVal;
+          if (val.value === "Home & No")   parsedOdds["Home Win & BTTS No"] = oddVal;
+          if (val.value === "Draw & Yes")  parsedOdds["Draw & BTTS Yes"] = oddVal;
+          if (val.value === "Draw & No")   parsedOdds["Draw & BTTS No"] = oddVal;
+          if (val.value === "Away & Yes")  parsedOdds["Away Win & BTTS Yes"] = oddVal;
+          if (val.value === "Away & No")   parsedOdds["Away Win & BTTS No"] = oddVal;
+        }
+        // Asian Handicap
+        if (bet.name === "Asian Handicap") {
+          const ahMap = {
+            "Home -0.5": "AH Home -0.5", "Away +0.5": "AH Away +0.5",
+            "Home -1": "AH Home -1", "Away +1": "AH Away +1",
+            "Home -1.5": "AH Home -1.5", "Away +1.5": "AH Away +1.5",
+            "Home -2": "AH Home -2", "Away +2": "AH Away +2",
+            "Home +0.5": "AH Home +0.5", "Away -0.5": "AH Away -0.5",
+            "Home +1": "AH Home +1", "Away -1": "AH Away -1",
+            "Home +1.5": "AH Home +1.5", "Away -1.5": "AH Away -1.5",
+          };
+          if (ahMap[val.value]) parsedOdds[ahMap[val.value]] = oddVal;
+        }
+        // Draw No Bet
+        if (bet.name === "Draw No Bet") {
+          if (val.value === "Home") parsedOdds["Draw No Bet Home"] = oddVal;
+          if (val.value === "Away") parsedOdds["Draw No Bet Away"] = oddVal;
+        }
       });
     });
   });
