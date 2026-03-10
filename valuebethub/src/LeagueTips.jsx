@@ -4,6 +4,7 @@
 
 import { useState, useEffect } from "react";
 import { fetchMatchData, generateOpportunities, MARKET_CATEGORIES } from "./api.js";
+import { FormPills, ProsCons } from "./TeamStatsCard.jsx";
 
 const LEAGUE_META = {
   "Premier League": { slug: "premier-league", emoji: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", color: "#3d195b", desc: "England's top flight — the most competitive league in the world." },
@@ -175,6 +176,18 @@ export default function LeagueTipsPage({ onMatchPreview }) {
                       </div>
                     </div>
 
+                    {/* Form pills */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, margin: "6px 0", flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                        {tip.homeLogo && <img src={tip.homeLogo} style={{ width: 13, height: 13, objectFit: "contain" }} alt="" />}
+                        <FormPills form={tip.analysis?.homeRecentForm} size="sm" />
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                        <FormPills form={tip.analysis?.awayRecentForm} size="sm" />
+                        {tip.awayLogo && <img src={tip.awayLogo} style={{ width: 13, height: 13, objectFit: "contain" }} alt="" />}
+                      </div>
+                    </div>
+
                     <div className="lt-tip-pick">
                       <div>
                         <div className="lt-tip-pick-label">Our Pick</div>
@@ -195,6 +208,8 @@ export default function LeagueTipsPage({ onMatchPreview }) {
                     {tip.narrative && (
                       <div className="lt-tip-narrative">{tip.narrative}</div>
                     )}
+
+                    <ProsCons pros={tip.pros} cons={tip.cons} />
 
                     <button className="lt-preview-btn" onClick={() => onMatchPreview && onMatchPreview(tip)}>
                       View Full Match Preview →
