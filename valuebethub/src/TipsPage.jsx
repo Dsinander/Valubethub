@@ -4,6 +4,7 @@
 
 import { useState, useEffect } from "react";
 import { fetchMatchData, generateOpportunities, MARKET_CATEGORIES } from "./api.js";
+import { FormPills, ProsCons } from "./TeamStatsCard.jsx";
 
 // ─── REASONING ENGINE ─────────────────────────────────────────────────
 // Generates a natural-language paragraph explaining WHY this bet has value.
@@ -302,6 +303,19 @@ export default function TipsPage() {
                     <span className="tip-meta-sep">·</span>
                     <span>{tip.day} {tip.time}</span>
                   </div>
+                  {/* Form pills — always visible */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      {tip.homeLogo && <img src={tip.homeLogo} style={{ width: 14, height: 14, objectFit: "contain" }} alt="" />}
+                      <FormPills form={tip.analysis?.homeRecentForm} size="sm" />
+                      <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{tip.analysis?.homeXGFor ? `${tip.analysis.homeXGFor} gls/gm` : ""}</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{tip.analysis?.awayXGFor ? `${tip.analysis.awayXGFor} gls/gm` : ""}</span>
+                      <FormPills form={tip.analysis?.awayRecentForm} size="sm" />
+                      {tip.awayLogo && <img src={tip.awayLogo} style={{ width: 14, height: 14, objectFit: "contain" }} alt="" />}
+                    </div>
+                  </div>
                 </div>
 
                 {/* The Tip */}
@@ -339,6 +353,9 @@ export default function TipsPage() {
                   <div className="tip-reasoning-label">🧠 AI Analysis</div>
                   <p className="tip-reasoning-text">{reasoning}</p>
                 </div>
+
+                {/* Pros/Cons */}
+                <ProsCons pros={tip.pros} cons={tip.cons} />
 
                 {/* Context Insights (expandable) */}
                 {tip.analysis?.contextInsights?.length > 0 && (
