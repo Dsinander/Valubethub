@@ -261,12 +261,16 @@ export default function DailySlipsPage() {
                     <span className="ds-leg-league">{sel.leagueFlag} {sel.league} · {sel.day} {sel.time}</span>
                     <span className="ds-leg-market">{sel.market}</span>
                   </div>
-                  {/* Expandable analysis */}
+                  {/* Narrative analysis — always visible */}
+                  {sel.narrative && (
+                    <div className="ds-leg-narrative">{sel.narrative}</div>
+                  )}
+                  {/* Expandable detailed data */}
                   <button
                     className="ds-leg-toggle"
                     onClick={() => setExpandedLegs(p => ({ ...p, [`${profile.id}-${i}`]: !p[`${profile.id}-${i}`] }))}
                   >
-                    {expandedLegs[`${profile.id}-${i}`] ? "▾ Hide why" : "▸ Why this pick?"}
+                    {expandedLegs[`${profile.id}-${i}`] ? "▾ Hide details" : "▸ Show data"}
                   </button>
                   {expandedLegs[`${profile.id}-${i}`] && (
                     <div className="ds-leg-reason">
@@ -275,9 +279,9 @@ export default function DailySlipsPage() {
                         Book: <strong>{sel.impliedProbability}%</strong>
                         {parseFloat(sel.edge) > 0 && <span style={{ color: "var(--green-400)" }}> (+{sel.edge}% edge)</span>}
                       </div>
-                      {sel.analysis?.contextInsights?.slice(0, 2).map((ins, j) => (
+                      {sel.analysis?.contextInsights?.slice(0, 3).map((ins, j) => (
                         <div key={j} style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>
-                          {ins.icon} {ins.title}: {ins.detail?.slice(0, 120)}{ins.detail?.length > 120 ? "..." : ""}
+                          {ins.icon} {ins.title}: {ins.detail}
                         </div>
                       ))}
                     </div>
@@ -482,6 +486,16 @@ const SLIPS_CSS = `
     transition: color 0.2s;
   }
   .ds-leg-toggle:hover { color: var(--gold-300); }
+  .ds-leg-narrative {
+    margin-top: 10px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: rgba(212,175,55,0.04);
+    border-left: 3px solid rgba(212,175,55,0.3);
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+  }
   .ds-leg-reason {
     margin-top: 8px;
     padding: 10px;
