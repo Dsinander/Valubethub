@@ -20,6 +20,7 @@ const SLIP_PROFILES = [
     riskLevel: "conservative",
     targetMultiplier: 1.8, // target odds ~1.8x
     stakeAdvice: "3-5% of your bankroll",
+    timeframe: "Today's matches",
     color: "var(--blue-500)",
     bgColor: "rgba(59,130,246,0.08)",
     borderColor: "rgba(59,130,246,0.2)",
@@ -35,6 +36,7 @@ const SLIP_PROFILES = [
     riskLevel: "balanced",
     targetMultiplier: 4,
     stakeAdvice: "2-3% of your bankroll",
+    timeframe: "Today's matches",
     color: "var(--gold-400)",
     bgColor: "rgba(212,175,55,0.06)",
     borderColor: "rgba(212,175,55,0.2)",
@@ -50,6 +52,7 @@ const SLIP_PROFILES = [
     riskLevel: "balanced",
     targetMultiplier: 8,
     stakeAdvice: "1-2% of your bankroll",
+    timeframe: "Next 3 days",
     color: "var(--green-400)",
     bgColor: "rgba(34,197,94,0.06)",
     borderColor: "rgba(34,197,94,0.2)",
@@ -65,6 +68,7 @@ const SLIP_PROFILES = [
     riskLevel: "aggressive",
     targetMultiplier: 25,
     stakeAdvice: "0.5-1% of your bankroll (max €10)",
+    timeframe: "Next 5 days",
     color: "var(--orange-500)",
     bgColor: "rgba(245,158,11,0.06)",
     borderColor: "rgba(245,158,11,0.2)",
@@ -89,18 +93,42 @@ export default function DailySlipsPage() {
       }
 
       const allMarkets = new Set(Object.values(MARKET_CATEGORIES).flatMap(c => c.markets));
-      const fixtures = result.fixtures.filter(f => f.odds && Object.keys(f.odds).length > 0);
+      const allWithOdds = result.fixtures.filter(f => f.odds && Object.keys(f.odds).length > 0);
 
-      if (fixtures.length === 0) {
+      if (allWithOdds.length === 0) {
         setLoading(false);
         return;
       }
 
-      const opps = generateOpportunities(fixtures, allMarkets);
+      // ─── Date-filtered fixture pools ────────────────────────
+      const today = new Date().toISOString().split("T")[0];
+      const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0];
+      const in3Days = new Date(Date.now() + 3 * 86400000).toISOString().split("T")[0];
+      const in5Days = new Date(Date.now() + 5 * 86400000).toISOString().split("T")[0];
+
+      const todayFixtures = allWithOdds.filter(f => f.date === today || f.date === tomorrow);
+      const shortRange = allWithOdds.filter(f => f.date <= in3Days);
+      const mediumRange = allWithOdds.filter(f => f.date <= in5Days);
+
       const generated = {};
 
       for (const profile of SLIP_PROFILES) {
-        const numSel = Math.min(profile.selections, fixtures.length);
+        // The Lock & Daily Double: TODAY/TOMORROW fixtures only
+        // Hat-trick: within 3 days
+        // The Rocket: within 5 days
+        let pool;
+        if (profile.id === "the-lock" || profile.id === "daily-double") {
+          pool = todayFixtures;
+        } else if (profile.id === "hat-trick") {
+          pool = shortRange.length >= 3 ? shortRange : mediumRange;
+        } else {
+          pool = mediumRange.length >= 5 ? mediumRange : allWithOdds;
+        }
+
+        if (pool.length === 0) continue;
+
+        const opps = generateOpportunities(pool, allMarkets);
+        const numSel = Math.min(profile.selections, pool.length);
         if (numSel < 1) continue;
 
         const targetOdds = profile.targetMultiplier;
@@ -182,6 +210,7 @@ export default function DailySlipsPage() {
               <div className="ds-slip-title-block">
                 <h2 className="ds-slip-name" style={{ color: profile.color }}>{profile.name}</h2>
                 <p className="ds-slip-tagline">{profile.tagline}</p>
+                <span className="ds-slip-timeframe">{profile.timeframe}</span>
               </div>
               <div className="ds-slip-odds">
                 <div className="ds-slip-odds-value" style={{ color: profile.color }}>
@@ -351,6 +380,18 @@ const SLIPS_CSS = `
     font-size: 13px;
     color: var(--text-muted);
     font-style: italic;
+  }
+  .ds-slip-timeframe {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(148,163,184,0.1);
+    color: var(--text-muted);
+    margin-top: 4px;
   }
   .ds-slip-odds { text-align: right; }
   .ds-slip-odds-value {
