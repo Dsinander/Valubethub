@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from "react";
 import { fetchMatchData, generateOpportunities, buildSlip, MARKET_CATEGORIES } from "./api.js";
+import { FormPills, MatchFormHeader, ProsCons } from "./TeamStatsCard.jsx";
 
 // ═══════════════════════════════════════════════════════════════════════
 // SLIP PROFILES — each has a different personality and strategy
@@ -261,10 +262,23 @@ export default function DailySlipsPage() {
                     <span className="ds-leg-league">{sel.leagueFlag} {sel.league} · {sel.day} {sel.time}</span>
                     <span className="ds-leg-market">{sel.market}</span>
                   </div>
+                  {/* Form pills — always visible */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      {sel.homeLogo && <img src={sel.homeLogo} style={{ width: 14, height: 14, objectFit: "contain" }} alt="" />}
+                      <FormPills form={sel.analysis?.homeRecentForm} size="sm" />
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <FormPills form={sel.analysis?.awayRecentForm} size="sm" />
+                      {sel.awayLogo && <img src={sel.awayLogo} style={{ width: 14, height: 14, objectFit: "contain" }} alt="" />}
+                    </div>
+                  </div>
                   {/* Narrative analysis — always visible */}
                   {sel.narrative && (
                     <div className="ds-leg-narrative">{sel.narrative}</div>
                   )}
+                  {/* Pros/Cons */}
+                  <ProsCons pros={sel.pros} cons={sel.cons} />
                   {/* Expandable detailed data */}
                   <button
                     className="ds-leg-toggle"
