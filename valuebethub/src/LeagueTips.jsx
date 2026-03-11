@@ -5,6 +5,7 @@
 import { useState, useEffect } from "react";
 import { fetchMatchData, generateOpportunities, MARKET_CATEGORIES, marketDisplayName } from "./api.js";
 import { FormPills, ProsCons } from "./TeamStatsCard.jsx";
+import { AffiliateTipButton } from "./AffiliateCTA.jsx";
 
 const LEAGUE_META = {
   "Premier League": { slug: "premier-league", emoji: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", color: "#3d195b", desc: "England's top flight — the most competitive league in the world." },
@@ -210,6 +211,10 @@ export default function LeagueTipsPage({ onMatchPreview }) {
                     )}
 
                     <ProsCons pros={tip.pros} cons={tip.cons} />
+
+                    <div style={{ marginTop: 8 }}>
+                      <AffiliateTipButton market={tip.market} odds={tip.bookmakerOdds} />
+                    </div>
 
                     <button className="lt-preview-btn" onClick={() => onMatchPreview && onMatchPreview(tip)}>
                       View Full Match Preview →
