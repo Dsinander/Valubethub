@@ -1214,42 +1214,69 @@ export function generateOpportunities(fixtures, allowedMarkets) {
 export function buildSlip(opportunities, numSelections, riskLevel, targetOdds, targetWinnings, stake) {
   const targetPerLeg = Math.pow(targetOdds, 1 / numSelections);
 
+  // How ambitious is this target?
+  const isHighTarget = targetPerLeg > 2.5;      // e.g. 4 legs at 3x each = 81x
+  const isExtremeTarget = targetPerLeg > 4.0;    // e.g. 4 legs at 5x each = 625x
+
   const tolerance = {
     conservative: { min: Math.max(1.10, targetPerLeg * 0.6), max: targetPerLeg * 1.2 },
     balanced:     { min: Math.max(1.10, targetPerLeg * 0.5), max: targetPerLeg * 1.5 },
     aggressive:   { min: Math.max(1.10, targetPerLeg * 0.4), max: targetPerLeg * 2.0 },
   }[riskLevel];
 
+  // For high targets, widen the range even more
+  if (isHighTarget || isExtremeTarget) {
+    tolerance.min = Math.max(1.10, targetPerLeg * 0.3);
+    tolerance.max = targetPerLeg * 2.5;
+  }
+
   // ─── STEP 1: Filter out terrible bets ──────────────────────────────
-  // No matter the edge, we never recommend bets below these probability floors
-  const minProb = {
+  // Probability floors are ADAPTIVE based on target odds.
+  // Normal targets (2-10x): strict floors — only recommend likely bets
+  // High targets (10-50x): relaxed floors — allow riskier picks but still rank by quality
+  // Extreme targets (50x+): minimal floors — build the best possible long shot
+  
+  // How ambitious is this target? Per-leg odds tell us.
+  // (already defined above)
+
+  const baseMinProb = {
     conservative: { match: 50, draw: 28, doubleChance: 60, goals: 45, btts: 45, corners: 45 },
     balanced:     { match: 42, draw: 25, doubleChance: 52, goals: 38, btts: 38, corners: 38 },
     aggressive:   { match: 33, draw: 22, doubleChance: 42, goals: 30, btts: 30, corners: 30 },
   }[riskLevel];
 
+  // Scale down floors for ambitious targets (minimum 15% for match results, 10% for draws)
+  const scaleFactor = isExtremeTarget ? 0.4 : isHighTarget ? 0.65 : 1.0;
+  const minProb = {};
+  for (const key of Object.keys(baseMinProb)) {
+    const floor = key === "draw" ? 10 : key === "doubleChance" ? 20 : 15;
+    minProb[key] = Math.max(floor, Math.round(baseMinProb[key] * scaleFactor));
+  }
+
   const passesMinProb = (opp) => {
     const prob = opp.aiProbability;
     const m = opp.market;
     if (m.includes("Home Win") || m.includes("Away Win")) {
-      if (m.includes("&")) return prob >= minProb.goals;  // Combo bets have lower base prob
+      if (m.includes("&")) return prob >= Math.max(10, minProb.goals * 0.6);  // Combo bets
       return prob >= minProb.match;
     }
     if (m.includes("Draw") && !m.includes("Draw No Bet")) {
-      if (m.includes("&")) return prob >= 15;  // Draw combos are naturally rare
+      if (m.includes("&")) return prob >= 8;  // Draw combos are naturally rare
       return prob >= minProb.draw;
     }
     if (m.includes("1X") || m.includes("X2") || m.includes("12") || m.includes("Double")) return prob >= minProb.doubleChance;
     if (m.includes("Over") || m.includes("Under")) return prob >= minProb.goals;
     if (m.includes("BTTS")) return prob >= minProb.btts;
     if (m.includes("Corner")) return prob >= minProb.corners;
-    if (m.startsWith("AH")) return prob >= minProb.goals;  // Asian Handicap
-    if (m.includes("Draw No Bet")) return prob >= minProb.match;  // DNB similar to match result
+    if (m.startsWith("AH")) return prob >= minProb.goals;
+    if (m.includes("Draw No Bet")) return prob >= minProb.match;
     return prob >= minProb.match;
   };
 
   // ─── STEP 2: Score by BOTH probability and edge ────────────────────
-  // A 65% prob bet with +1% edge >> a 35% bet with +3% edge
+  // For normal targets: probability dominates scoring
+  // For high targets: odds-fit becomes critical (we NEED to reach the target)
+  //   but within the right odds range, probability still picks the best bet
   const scored = opportunities
     .filter(opp => opp.bookmakerOdds >= 1.05 && passesMinProb(opp))
     .map(opp => {
@@ -1259,20 +1286,34 @@ export function buildSlip(opportunities, numSelections, riskLevel, targetOdds, t
       const oddsFit = Math.abs(Math.log(odds) - Math.log(targetPerLeg));
       const inRange = odds >= tolerance.min && odds <= tolerance.max;
 
-      // Probability is now the primary factor in ALL modes
       let score = inRange ? 10 : 0;
-      score -= oddsFit * 4;
-      score += prob * 0.15;              // Probability always matters
-      score += edge * 3;                 // Edge matters too
-      if (opp.isValue) score += 4;       // Value bet bonus
+
+      if (isExtremeTarget) {
+        // Extreme targets: odds-fit is king, but pick highest prob within range
+        score += inRange ? 15 : -oddsFit * 8;
+        score += prob * 0.08;              // Prob still matters but less
+        score += edge * 2;
+      } else if (isHighTarget) {
+        // High targets: balance odds-fit with probability
+        score -= oddsFit * 6;
+        score += prob * 0.12;
+        score += edge * 2.5;
+        if (opp.isValue) score += 3;
+      } else {
+        // Normal targets: probability dominates
+        score -= oddsFit * 4;
+        score += prob * 0.15;
+        score += edge * 3;
+        if (opp.isValue) score += 4;
+      }
 
       // Risk-level adjustments
       if (riskLevel === "conservative") {
-        score += prob * 0.10;            // Extra probability weight
-        if (prob >= 60) score += 3;      // Bonus for very likely bets
+        score += prob * 0.10;
+        if (prob >= 60) score += 3;
       }
       if (riskLevel === "aggressive") {
-        score += edge * 2;               // Extra edge weight
+        score += edge * 2;
       }
 
       return { ...opp, _score: score };
@@ -1346,7 +1387,7 @@ export function buildSlip(opportunities, numSelections, riskLevel, targetOdds, t
     }
   }
 
-  const combinedOdds = selected.reduce((acc, m) => acc * m.bookmakerOdds, 1);
+  const combinedOdds = +selected.reduce((acc, m) => acc * m.bookmakerOdds, 1).toFixed(2);
   const avgEdge = selected.length ? selected.reduce((a, m) => a + parseFloat(m.edge), 0) / selected.length : 0;
   const slipWinProb = selected.reduce((acc, m) => acc * (m.aiProbability / 100), 1);
   const targetRatio = combinedOdds / targetOdds;
@@ -1365,24 +1406,29 @@ export function buildSlip(opportunities, numSelections, riskLevel, targetOdds, t
   }
 
   if (!targetHit) {
-    // Target too ambitious
-    if (targetOdds > 20) {
-      const realisticTarget = Math.round(parseFloat(stake) * Math.min(combinedOdds, 10));
+    // Target not reached
+    if (combinedOdds >= targetOdds * 0.5) {
+      // Close to target — encouraging
       suggestions.push({
-        icon: "⚠️", title: "Target may be too ambitious",
-        detail: `€${targetWinnings} from €${stake} needs ${targetOdds.toFixed(0)}x odds. With quality bets, we reached ${combinedOdds}x. Consider a target of €${realisticTarget} or increasing your stake.`,
-        action: `try_target_${realisticTarget}`,
+        icon: "📊", title: `Close to target: ${combinedOdds}x of ${targetOdds.toFixed(0)}x`,
+        detail: `We got to ${combinedOdds}x with the best available picks. Adding more legs or switching to Bold mode could close the gap.`,
+      });
+    } else if (targetOdds > 20) {
+      const realisticTarget = Math.round(parseFloat(stake) * combinedOdds);
+      suggestions.push({
+        icon: "⚠️", title: "Target is very ambitious",
+        detail: `€${targetWinnings} from €${stake} needs ${targetOdds.toFixed(0)}x odds. We built the best ${combinedOdds}x slip possible. This would return €${realisticTarget}.`,
       });
     }
     if (targetOdds > 5) {
-      const neededStake = Math.ceil(parseFloat(targetWinnings || 500) / Math.max(combinedOdds, 5));
+      const neededStake = Math.ceil(parseFloat(targetWinnings || 500) / Math.max(combinedOdds, 2));
       suggestions.push({
         icon: "💰", title: "Increase your stake",
         detail: `€${neededStake} stake at ${combinedOdds}x odds would return €${Math.round(neededStake * combinedOdds)}.`,
         action: `try_stake_${neededStake}`,
       });
     }
-    if (numSelections < maxMatches && numSelections < 6) {
+    if (numSelections < maxMatches && numSelections < 8) {
       const moreLegs = Math.min(maxMatches, numSelections + 2);
       suggestions.push({
         icon: "➕", title: "Add more selections",
@@ -1390,20 +1436,28 @@ export function buildSlip(opportunities, numSelections, riskLevel, targetOdds, t
         action: `try_legs_${moreLegs}`,
       });
     }
-    if (riskLevel === "conservative" && targetPerLeg > 2.0) {
+    if (riskLevel !== "aggressive" && targetPerLeg > 2.0) {
       suggestions.push({
-        icon: "⚠️", title: "Risk level mismatch",
-        detail: `Your target needs ${targetPerLeg.toFixed(2)}x per leg — that's not conservative. Switch to Balanced or Bold to reach higher odds.`,
+        icon: "🔥", title: riskLevel === "conservative" ? "Switch to Bold mode" : "Switch to Bold mode",
+        detail: `Your target needs ${targetPerLeg.toFixed(2)}x per leg. Bold mode allows riskier picks that can reach higher odds.`,
       });
     }
   }
 
   if (slipWinProb < 0.03 && selected.length > 1) {
-    suggestions.push({
-      icon: "⚠️", title: `Win probability is ${(slipWinProb * 100).toFixed(1)}%`,
-      detail: `That's roughly 1 in ${Math.round(1 / Math.max(slipWinProb, 0.001))} chance. Consider fewer legs for better odds of winning.`,
-      action: selected.length > 2 ? `try_legs_${selected.length - 1}` : undefined,
-    });
+    if (targetOdds > 50) {
+      // High-odds slip — don't lecture them, they know it's a long shot
+      suggestions.push({
+        icon: "🚀", title: `Long shot: ${(slipWinProb * 100).toFixed(1)}% win probability`,
+        detail: `Roughly 1 in ${Math.round(1 / Math.max(slipWinProb, 0.001))} chance — but these are the statistically best picks at these odds. Small stake only.`,
+      });
+    } else {
+      suggestions.push({
+        icon: "⚠️", title: `Win probability is ${(slipWinProb * 100).toFixed(1)}%`,
+        detail: `That's roughly 1 in ${Math.round(1 / Math.max(slipWinProb, 0.001))} chance. Consider fewer legs for better odds of winning.`,
+        action: selected.length > 2 ? `try_legs_${selected.length - 1}` : undefined,
+      });
+    }
   }
 
   if (targetHit && slipWinProb > 0.05 && avgEdge > 0) {
@@ -1413,10 +1467,24 @@ export function buildSlip(opportunities, numSelections, riskLevel, targetOdds, t
     });
   }
 
-  if (targetHit && avgEdge > 0 && slipWinProb <= 0.05) {
+  if (targetHit && slipWinProb > 0.05 && avgEdge <= 0) {
     suggestions.push({
-      icon: "✅", title: "Target reached — but high risk",
-      detail: `Odds of ${combinedOdds}x hit your target with ${selected.filter(m => m.isValue).length} value bets, but win probability is only ${(slipWinProb * 100).toFixed(1)}%. Consider this an entertainment bet, not an investment.`,
+      icon: "✅", title: "Target reached",
+      detail: `Combined odds of ${combinedOdds}x hit your target. Win probability: ${(slipWinProb * 100).toFixed(1)}%.`,
+    });
+  }
+
+  if (targetHit && slipWinProb <= 0.05 && slipWinProb > 0.01) {
+    suggestions.push({
+      icon: "✅", title: "Target reached — high risk",
+      detail: `${combinedOdds}x odds hit your target. Win probability: ${(slipWinProb * 100).toFixed(1)}%. This is an entertainment bet — keep the stake small.`,
+    });
+  }
+
+  if (targetHit && slipWinProb <= 0.01) {
+    suggestions.push({
+      icon: "🚀", title: "Target reached — extreme long shot",
+      detail: `${combinedOdds}x odds! Win probability: ${(slipWinProb * 100).toFixed(2)}% (~1 in ${Math.round(1 / Math.max(slipWinProb, 0.0001))}). We picked the best possible legs at these odds. Bet only what you can afford to lose.`,
     });
   }
 
