@@ -5,6 +5,7 @@
 import { useState, useEffect } from "react";
 import { fetchMatchData, generateOpportunities, MARKET_CATEGORIES, marketDisplayName } from "./api.js";
 import { ProsCons, FullTeamStats } from "./TeamStatsCard.jsx";
+import { AffiliateMatchButtons } from "./AffiliateCTA.jsx";
 
 // ═══════════════════════════════════════════════════════════════════════
 // MATCH PREVIEW PAGE
@@ -315,6 +316,11 @@ export default function MatchPreviewPage({ matchTip, allFixtures, onBack }) {
               </div>
             </div>
           )}
+
+          {/* Affiliate CTA */}
+          <div style={{ marginTop: 16 }}>
+            <AffiliateMatchButtons />
+          </div>
 
           {/* Full Team Statistics */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 16 }}>
