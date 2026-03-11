@@ -3,7 +3,7 @@
 // Picks the 3-5 strongest value bets and presents them as editorial content.
 
 import { useState, useEffect } from "react";
-import { fetchMatchData, generateOpportunities, MARKET_CATEGORIES } from "./api.js";
+import { fetchMatchData, generateOpportunities, MARKET_CATEGORIES, marketDisplayName } from "./api.js";
 import { FormPills, ProsCons } from "./TeamStatsCard.jsx";
 
 // ─── REASONING ENGINE ─────────────────────────────────────────────────
@@ -322,7 +322,7 @@ export default function TipsPage() {
                 <div className="tip-pick-row">
                   <div className="tip-pick-left">
                     <div className="tip-pick-label">Our Pick</div>
-                    <div className="tip-pick-market">{marketDisplay(tip.market)}</div>
+                    <div className="tip-pick-market">{marketDisplayName(tip.market)}</div>
                   </div>
                   <div className="tip-pick-right">
                     <div className="tip-odds">{tip.bookmakerOdds}</div>
