@@ -4,7 +4,7 @@
 // Zero manual work — refreshes when fixture data refreshes.
 
 import { useState, useEffect } from "react";
-import { fetchMatchData, generateOpportunities, buildSlip, MARKET_CATEGORIES } from "./api.js";
+import { fetchMatchData, generateOpportunities, buildSlip, MARKET_CATEGORIES, marketDisplayName } from "./api.js";
 import { FormPills, MatchFormHeader, ProsCons } from "./TeamStatsCard.jsx";
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -260,7 +260,7 @@ export default function DailySlipsPage() {
                   </div>
                   <div className="ds-leg-bottom">
                     <span className="ds-leg-league">{sel.leagueFlag} {sel.league} · {sel.day} {sel.time}</span>
-                    <span className="ds-leg-market">{sel.market}</span>
+                    <span className="ds-leg-market">{marketDisplayName(sel.market)}</span>
                   </div>
                   {/* Form pills — always visible */}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
