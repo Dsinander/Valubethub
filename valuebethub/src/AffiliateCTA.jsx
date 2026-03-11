@@ -11,12 +11,12 @@
 // ═══════════════════════════════════════════════════════════════════════
 const BOOKMAKERS = [
   {
-    name: "Unibet",
-    slug: "unibet",
-    url: "#", // Replace with: "https://www.unibet.com/?affiliate=YOUR_ID"
+    name: "1xBet",
+    slug: "1xbet",
+    url: "https://refpa14435.com/L?tag=d_5343575m_1599c_5343575&site=5343575&ad=1599&r=registration",
     bonus: "Up to €100 Welcome Bonus",
-    color: "#14805e",
-    active: false, // Set to true when affiliate is approved
+    color: "#1a5fb4",
+    active: true,
   },
   {
     name: "Bet365",
