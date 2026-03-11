@@ -87,6 +87,68 @@ export const MARKET_CATEGORIES = {
   },
 };
 
+// ─── MARKET DISPLAY NAMES ───────────────────────────────────────────
+// Converts internal market keys to clean, user-friendly labels
+export function marketDisplayName(market) {
+  const map = {
+    // 1X2
+    "Home Win": "Home Win",
+    "Away Win": "Away Win",
+    "Draw": "Draw",
+    // Over/Under
+    "Over 1.5": "Over 1.5 Goals",
+    "Under 1.5": "Under 1.5 Goals",
+    "Over 2.5": "Over 2.5 Goals",
+    "Under 2.5": "Under 2.5 Goals",
+    "Over 3.5": "Over 3.5 Goals",
+    "Under 3.5": "Under 3.5 Goals",
+    // BTTS
+    "BTTS Yes": "Both Teams to Score",
+    "BTTS No": "Both Teams Not to Score",
+    // Double Chance
+    "1X (Home or Draw)": "Home or Draw",
+    "X2 (Draw or Away)": "Draw or Away",
+    "12 (Home or Away)": "Home or Away (No Draw)",
+    // Combos
+    "Home Win & Over 2.5": "Home Win & Over 2.5 Goals",
+    "Home Win & Under 2.5": "Home Win & Under 2.5 Goals",
+    "Draw & Over 2.5": "Draw & Over 2.5 Goals",
+    "Draw & Under 2.5": "Draw & Under 2.5 Goals",
+    "Away Win & Over 2.5": "Away Win & Over 2.5 Goals",
+    "Away Win & Under 2.5": "Away Win & Under 2.5 Goals",
+    "Home Win & BTTS Yes": "Home Win & Both to Score",
+    "Home Win & BTTS No": "Home Win & Clean Sheet",
+    "Draw & BTTS Yes": "Draw & Both to Score",
+    "Draw & BTTS No": "Draw & Clean Sheet",
+    "Away Win & BTTS Yes": "Away Win & Both to Score",
+    "Away Win & BTTS No": "Away Win & Clean Sheet",
+    // Asian Handicap
+    "AH Home -0.5": "Home -0.5 Handicap",
+    "AH Home -1": "Home -1 Handicap",
+    "AH Home -1.5": "Home -1.5 Handicap",
+    "AH Home -2": "Home -2 Handicap",
+    "AH Home +0.5": "Home +0.5 Handicap",
+    "AH Home +1": "Home +1 Handicap",
+    "AH Home +1.5": "Home +1.5 Handicap",
+    "AH Away -0.5": "Away -0.5 Handicap",
+    "AH Away -1": "Away -1 Handicap",
+    "AH Away -1.5": "Away -1.5 Handicap",
+    "AH Away +0.5": "Away +0.5 Handicap",
+    "AH Away +1": "Away +1 Handicap",
+    "AH Away +1.5": "Away +1.5 Handicap",
+    "AH Away +2": "Away +2 Handicap",
+    // Draw No Bet
+    "Draw No Bet Home": "Home (Draw No Bet)",
+    "Draw No Bet Away": "Away (Draw No Bet)",
+    // Corners
+    "Over 8.5 Corners": "Over 8.5 Corners",
+    "Under 8.5 Corners": "Under 8.5 Corners",
+    "Over 10.5 Corners": "Over 10.5 Corners",
+    "Under 10.5 Corners": "Under 10.5 Corners",
+  };
+  return map[market] || market;
+}
+
 // ─── REALISTIC AI PROBABILITY ENGINE ─────────────────────────────────
 // 
 // KEY PRINCIPLE: Bookmaker odds are the anchor. They have teams of analysts
