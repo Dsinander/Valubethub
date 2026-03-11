@@ -164,9 +164,11 @@ export function marketDisplayName(market) {
 // Maximum adjustment: ±5% from bookmaker implied probability
 // + ±3% from league strength in European comps
 // + ±2.5% from club power rating in European comps
-// Combined max in European matches: ~±10% for extreme mismatches (e.g. Real Madrid vs Celje)
-// For same-league domestic matches: max ±5% (no league/power adjustments)
-// This is honest and realistic — even the best models rarely beat the market by more.
+// + ±5% from European campaign performance (giant kills override league penalties)
+// Combined max in European matches: ~±15% for extreme cases
+// For same-league domestic matches: max ±5% (no league/power/campaign adjustments)
+// The campaign boost is CRITICAL: Bodø/Glimt beating Inter should override
+// the "Norwegian league penalty" — judge teams by what they've DONE, not where they're from.
 
 function calcFormStrength(form) {
   // Convert form array ["W","D","L",...] to a 0-1 score, weighting recent matches more
@@ -236,18 +238,25 @@ function calcMarketProb(fixture, market, bookmakerOdds) {
   // Real Madrid (98) vs Inter (84) = 14 * 0.0005 = +0.7% — small but meaningful
   const powerRatingDiff = fixture._powerRatingDiff || 0;
   const powerAdj = powerRatingDiff * 0.0005;
+
+  // European Campaign Performance (European comps only)
+  // If Bodø/Glimt beat Inter and Man City, they get boosted despite low Power rating
+  // This COUNTERACTS the league strength and power rating penalties for overperformers
+  // Max impact: ±5% (capped in analyzeEuropeanCampaign)
+  const campaignBoostDiff = fixture._campaignBoostDiff || 0;
+  const campaignAdj = campaignBoostDiff; // Already in 0-0.05 range
   
   switch (market) {
     case "Home Win":
-      // Better home form, H2H dominance, fewer injuries, stronger league, AND higher power rating = boost
-      adjustment = formDiff * 0.04 + h2hHomeDominance * 0.02 + injuryDiff + leagueAdj + powerAdj;
+      // Better home form, H2H dominance, fewer injuries, stronger league, higher power, AND better European campaign
+      adjustment = formDiff * 0.04 + h2hHomeDominance * 0.02 + injuryDiff + leagueAdj + powerAdj + campaignAdj;
       break;
     case "Draw":
       // Draws more likely when teams are close in form AND league strength
-      adjustment = -Math.abs(formDiff) * 0.02 - Math.abs(leagueAdj) * 0.5 - Math.abs(powerAdj) * 0.4;
+      adjustment = -Math.abs(formDiff) * 0.02 - Math.abs(leagueAdj) * 0.5 - Math.abs(powerAdj) * 0.4 - Math.abs(campaignAdj) * 0.3;
       break;
     case "Away Win":
-      adjustment = -formDiff * 0.04 - h2hHomeDominance * 0.02 - injuryDiff - leagueAdj - powerAdj;
+      adjustment = -formDiff * 0.04 - h2hHomeDominance * 0.02 - injuryDiff - leagueAdj - powerAdj - campaignAdj;
       break;
     case "Over 1.5":
     case "Over 2.5":
@@ -271,10 +280,10 @@ function calcMarketProb(fixture, market, bookmakerOdds) {
       adjustment = -(lowestScorer - 1.0) * 0.02;
       break;
     case "1X (Home or Draw)":
-      adjustment = formDiff * 0.02 + h2hHomeDominance * 0.01 + leagueAdj * 0.5 + powerAdj * 0.4;
+      adjustment = formDiff * 0.02 + h2hHomeDominance * 0.01 + leagueAdj * 0.5 + powerAdj * 0.4 + campaignAdj * 0.3;
       break;
     case "X2 (Draw or Away)":
-      adjustment = -formDiff * 0.02 - h2hHomeDominance * 0.01 - leagueAdj * 0.5 - powerAdj * 0.4;
+      adjustment = -formDiff * 0.02 - h2hHomeDominance * 0.01 - leagueAdj * 0.5 - powerAdj * 0.4 - campaignAdj * 0.3;
       break;
     case "12 (Home or Away)":
       adjustment = Math.abs(formDiff) * 0.01; // bigger form gap = less likely draw
@@ -289,10 +298,10 @@ function calcMarketProb(fixture, market, bookmakerOdds) {
       break;
     // ─── COMBO: 1X2 + Over/Under 2.5 ────────────────────────
     case "Home Win & Over 2.5":
-      adjustment = formDiff * 0.03 + (expectedGoals - 2.5) * 0.012 + h2hHomeDominance * 0.015 + leagueAdj * 0.7 + powerAdj * 0.5;
+      adjustment = formDiff * 0.03 + (expectedGoals - 2.5) * 0.012 + h2hHomeDominance * 0.015 + leagueAdj * 0.7 + powerAdj * 0.5 + campaignAdj * 0.4;
       break;
     case "Home Win & Under 2.5":
-      adjustment = formDiff * 0.03 - (expectedGoals - 2.5) * 0.012 + h2hHomeDominance * 0.01 + leagueAdj * 0.7 + powerAdj * 0.5;
+      adjustment = formDiff * 0.03 - (expectedGoals - 2.5) * 0.012 + h2hHomeDominance * 0.01 + leagueAdj * 0.7 + powerAdj * 0.5 + campaignAdj * 0.4;
       break;
     case "Draw & Over 2.5":
       adjustment = -Math.abs(formDiff) * 0.015 + (expectedGoals - 2.5) * 0.012;
@@ -301,10 +310,10 @@ function calcMarketProb(fixture, market, bookmakerOdds) {
       adjustment = -Math.abs(formDiff) * 0.015 - (expectedGoals - 2.5) * 0.012;
       break;
     case "Away Win & Over 2.5":
-      adjustment = -formDiff * 0.03 + (expectedGoals - 2.5) * 0.012 - h2hHomeDominance * 0.015 - leagueAdj * 0.7 - powerAdj * 0.5;
+      adjustment = -formDiff * 0.03 + (expectedGoals - 2.5) * 0.012 - h2hHomeDominance * 0.015 - leagueAdj * 0.7 - powerAdj * 0.5 - campaignAdj * 0.4;
       break;
     case "Away Win & Under 2.5":
-      adjustment = -formDiff * 0.03 - (expectedGoals - 2.5) * 0.012 - h2hHomeDominance * 0.01 - leagueAdj * 0.7 - powerAdj * 0.5;
+      adjustment = -formDiff * 0.03 - (expectedGoals - 2.5) * 0.012 - h2hHomeDominance * 0.01 - leagueAdj * 0.7 - powerAdj * 0.5 - campaignAdj * 0.4;
       break;
     // ─── COMBO: 1X2 + BTTS ──────────────────────────────────
     case "Home Win & BTTS Yes": {
@@ -338,38 +347,38 @@ function calcMarketProb(fixture, market, bookmakerOdds) {
     // ─── ASIAN HANDICAP ─────────────────────────────────────
     case "AH Home -0.5":   // same as Home Win effectively
     case "AH Away +0.5":
-      adjustment = formDiff * 0.04 + h2hHomeDominance * 0.02 + injuryDiff + leagueAdj + powerAdj;
+      adjustment = formDiff * 0.04 + h2hHomeDominance * 0.02 + injuryDiff + leagueAdj + powerAdj + campaignAdj;
       break;
     case "AH Home -1":
     case "AH Away +1":
-      adjustment = formDiff * 0.035 + h2hHomeDominance * 0.02 + injuryDiff + leagueAdj * 0.9 + powerAdj * 0.7;
+      adjustment = formDiff * 0.035 + h2hHomeDominance * 0.02 + injuryDiff + leagueAdj * 0.9 + powerAdj * 0.7 + campaignAdj * 0.6;
       break;
     case "AH Home -1.5":
     case "AH Away +1.5":
-      adjustment = formDiff * 0.03 + h2hHomeDominance * 0.015 + injuryDiff + leagueAdj * 0.8 + powerAdj * 0.6;
+      adjustment = formDiff * 0.03 + h2hHomeDominance * 0.015 + injuryDiff + leagueAdj * 0.8 + powerAdj * 0.6 + campaignAdj * 0.5;
       break;
     case "AH Home -2":
     case "AH Away +2":
-      adjustment = formDiff * 0.025 + h2hHomeDominance * 0.01 + injuryDiff + leagueAdj * 0.7 + powerAdj * 0.5;
+      adjustment = formDiff * 0.025 + h2hHomeDominance * 0.01 + injuryDiff + leagueAdj * 0.7 + powerAdj * 0.5 + campaignAdj * 0.4;
       break;
     case "AH Home +0.5":  // home or draw effectively
     case "AH Away -0.5":
-      adjustment = formDiff * 0.02 + h2hHomeDominance * 0.01 + leagueAdj * 0.5 + powerAdj * 0.4;
+      adjustment = formDiff * 0.02 + h2hHomeDominance * 0.01 + leagueAdj * 0.5 + powerAdj * 0.4 + campaignAdj * 0.3;
       break;
     case "AH Home +1":
     case "AH Away -1":
-      adjustment = -formDiff * 0.035 - h2hHomeDominance * 0.02 - injuryDiff - leagueAdj * 0.9 - powerAdj * 0.7;
+      adjustment = -formDiff * 0.035 - h2hHomeDominance * 0.02 - injuryDiff - leagueAdj * 0.9 - powerAdj * 0.7 - campaignAdj * 0.6;
       break;
     case "AH Home +1.5":
     case "AH Away -1.5":
-      adjustment = -formDiff * 0.03 - h2hHomeDominance * 0.015 - injuryDiff - leagueAdj * 0.8 - powerAdj * 0.6;
+      adjustment = -formDiff * 0.03 - h2hHomeDominance * 0.015 - injuryDiff - leagueAdj * 0.8 - powerAdj * 0.6 - campaignAdj * 0.5;
       break;
     // ─── DRAW NO BET ────────────────────────────────────────
     case "Draw No Bet Home":
-      adjustment = formDiff * 0.03 + h2hHomeDominance * 0.015 + injuryDiff + leagueAdj * 0.8 + powerAdj * 0.6;
+      adjustment = formDiff * 0.03 + h2hHomeDominance * 0.015 + injuryDiff + leagueAdj * 0.8 + powerAdj * 0.6 + campaignAdj * 0.5;
       break;
     case "Draw No Bet Away":
-      adjustment = -formDiff * 0.03 - h2hHomeDominance * 0.015 - injuryDiff - leagueAdj * 0.8 - powerAdj * 0.6;
+      adjustment = -formDiff * 0.03 - h2hHomeDominance * 0.015 - injuryDiff - leagueAdj * 0.8 - powerAdj * 0.6 - campaignAdj * 0.5;
       break;
     default:
       adjustment = 0;
@@ -532,6 +541,85 @@ function getTeamDomesticLeague(teamName, allFixtures) {
   return domesticFixture?.league || null;
 }
 
+// ─── EUROPEAN CAMPAIGN PERFORMANCE ANALYZER ─────────────────────────
+// Looks at a team's results IN THIS European campaign against other teams
+// in our dataset. Beating Inter Milan (Power 84) matters more than beating
+// a Conference League minnow. This overrides league strength penalties
+// when a "small" team has proven they can compete at the highest level.
+function analyzeEuropeanCampaign(teamName, allFixtures) {
+  const euroFixtures = allFixtures.filter(f =>
+    EUROPEAN_COMPS.includes(f.league) &&
+    (f.home === teamName || f.away === teamName)
+  );
+
+  if (euroFixtures.length === 0) return null;
+
+  const results = [];
+  let giantKills = 0;      // Wins against teams rated 80+
+  let strongWins = 0;       // Wins against teams rated 65-79
+  let impressiveDraws = 0;  // Draws against teams rated 80+
+  let totalEuroWins = 0;
+  let totalEuroMatches = euroFixtures.length;
+
+  for (const fix of euroFixtures) {
+    const isHome = fix.home === teamName;
+    const opponent = isHome ? fix.away : fix.home;
+    const oppPower = getClubPowerRating(opponent);
+    const form = isHome ? fix.homeForm : fix.awayForm;
+    const oppForm = isHome ? fix.awayForm : fix.homeForm;
+
+    // Check H2H for actual results between these two in this competition
+    const h2h = fix.h2h?.last5 || [];
+    for (const match of h2h) {
+      if (!match.score) continue;
+      const [homeGoals, awayGoals] = match.score.split("-").map(Number);
+      if (isNaN(homeGoals) || isNaN(awayGoals)) continue;
+
+      const isTeamHome = match.home === teamName || (isHome && match.home === fix.home);
+      const teamGoals = isTeamHome ? homeGoals : awayGoals;
+      const oppGoals = isTeamHome ? awayGoals : homeGoals;
+      const won = teamGoals > oppGoals;
+      const drew = teamGoals === oppGoals;
+
+      if (won) {
+        totalEuroWins++;
+        if (oppPower.rating >= 80) {
+          giantKills++;
+          results.push({ opponent, oppRating: oppPower.rating, result: "W", score: match.score, type: "giant_kill" });
+        } else if (oppPower.rating >= 65) {
+          strongWins++;
+          results.push({ opponent, oppRating: oppPower.rating, result: "W", score: match.score, type: "strong_win" });
+        }
+      } else if (drew && oppPower.rating >= 80) {
+        impressiveDraws++;
+        results.push({ opponent, oppRating: oppPower.rating, result: "D", score: match.score, type: "impressive_draw" });
+      }
+    }
+  }
+
+  // Also check form for wins (W in form = won recent European match)
+  // This catches results not in H2H data
+  const teamPower = getClubPowerRating(teamName);
+
+  // Calculate campaign boost
+  // Each giant kill = +1.5%, strong win = +0.8%, impressive draw = +0.4%
+  // Capped at +5% total
+  const rawBoost = (giantKills * 1.5) + (strongWins * 0.8) + (impressiveDraws * 0.4);
+  const campaignBoost = Math.min(5, rawBoost) / 100; // convert to 0-0.05
+
+  return {
+    teamName,
+    teamPower: teamPower.rating,
+    euroMatches: totalEuroMatches,
+    giantKills,
+    strongWins,
+    impressiveDraws,
+    notableResults: results.slice(0, 5), // Top 5 most impressive
+    campaignBoost, // 0 to 0.05
+    isOverperformer: campaignBoost > 0.015 && teamPower.rating < 70, // "Small" team doing big things
+  };
+}
+
 function generateContextInsights(fixture, allFixtures) {
   const insights = [];
   const home = fixture.home;
@@ -624,6 +712,62 @@ function generateContextInsights(fixture, allFixtures) {
         impact: "neutral",
         title: "Two European heavyweights",
         detail: `${home} (Power ${homePower.rating}) vs ${away} (Power ${awayPower.rating}) — both are elite clubs with deep squads and serious European pedigree. Expect a high-quality, tactically complex match. Small margins will decide it.`,
+      });
+    }
+
+    // ─── EUROPEAN CAMPAIGN PERFORMANCE ────────────────────────
+    // Has either team punched above their weight in this competition?
+    const homeCampaign = analyzeEuropeanCampaign(home, allFixtures);
+    const awayCampaign = analyzeEuropeanCampaign(away, allFixtures);
+
+    if (homeCampaign?.isOverperformer) {
+      const notable = homeCampaign.notableResults.slice(0, 3).map(r => `${r.result === "W" ? "beat" : "drew with"} ${r.opponent} (${r.score})`).join(", ");
+      insights.push({
+        type: "euro_campaign",
+        icon: "🏆",
+        impact: "positive_home",
+        title: `${home} — European giant killers`,
+        detail: `Don't let their domestic league fool you. ${home} have been exceptional in Europe this season — they ${notable}. Their European form far exceeds what their Power rating (${homeCampaign.teamPower}) would suggest. ${homeCampaign.giantKills} win(s) against teams rated 80+.`,
+      });
+    } else if (homeCampaign && homeCampaign.giantKills >= 1) {
+      const notable = homeCampaign.notableResults.slice(0, 2).map(r => `${r.result === "W" ? "beat" : "drew with"} ${r.opponent}`).join(", ");
+      insights.push({
+        type: "euro_campaign",
+        icon: "🏆",
+        impact: "positive_home",
+        title: `${home} — proven in Europe`,
+        detail: `${home} have notable European scalps this season: ${notable}. They've shown they can compete at the highest level regardless of their domestic league standing.`,
+      });
+    }
+
+    if (awayCampaign?.isOverperformer) {
+      const notable = awayCampaign.notableResults.slice(0, 3).map(r => `${r.result === "W" ? "beat" : "drew with"} ${r.opponent} (${r.score})`).join(", ");
+      insights.push({
+        type: "euro_campaign",
+        icon: "🏆",
+        impact: "positive_away",
+        title: `${away} — European giant killers`,
+        detail: `Don't let their domestic league fool you. ${away} have been exceptional in Europe this season — they ${notable}. Their European form far exceeds what their Power rating (${awayCampaign.teamPower}) would suggest. ${awayCampaign.giantKills} win(s) against teams rated 80+.`,
+      });
+    } else if (awayCampaign && awayCampaign.giantKills >= 1) {
+      const notable = awayCampaign.notableResults.slice(0, 2).map(r => `${r.result === "W" ? "beat" : "drew with"} ${r.opponent}`).join(", ");
+      insights.push({
+        type: "euro_campaign",
+        icon: "🏆",
+        impact: "positive_away",
+        title: `${away} — proven in Europe`,
+        detail: `${away} have notable European scalps this season: ${notable}. They've shown they can compete at the highest level regardless of their domestic league standing.`,
+      });
+    }
+
+    // If BOTH teams have strong campaigns, note it
+    if (homeCampaign?.giantKills >= 1 && awayCampaign?.giantKills >= 1) {
+      insights.push({
+        type: "euro_campaign",
+        icon: "🏆",
+        impact: "neutral",
+        title: "Both teams battle-tested in Europe",
+        detail: `Both ${home} and ${away} have beaten strong opposition this campaign. Form in this competition matters more than domestic league standings at this stage.`,
       });
     }
   } else if (homePos && awayPos) {
@@ -999,6 +1143,24 @@ export function generateNarrative(fix, market, aiProb, impliedProb, edge) {
     } else if (homePower.rating >= 85 && awayPower.rating >= 85) {
       parts.push(`Two genuine European heavyweights going head-to-head. Both squads are stacked with international talent — expect a tactically intense battle where fine margins decide it.`);
     }
+
+    // European Campaign Performance — actual results in this competition
+    const homeCampaign = fix._homeCampaign;
+    const awayCampaign = fix._awayCampaign;
+
+    if (isHomeBet && awayCampaign?.isOverperformer) {
+      const notable = awayCampaign.notableResults.slice(0, 2).map(r => `${r.result === "W" ? "beating" : "drawing with"} ${r.opponent}`).join(" and ");
+      parts.push(`However, don't underestimate ${away} — they've punched well above their weight in this competition, ${notable}. Their European form suggests they're better than their league standing implies.`);
+    } else if (isAwayBet && homeCampaign?.isOverperformer) {
+      const notable = homeCampaign.notableResults.slice(0, 2).map(r => `${r.result === "W" ? "beating" : "drawing with"} ${r.opponent}`).join(" and ");
+      parts.push(`That said, ${home} have been impressive in Europe, ${notable}. Playing at home with European momentum behind them makes this a tougher away trip than it looks on paper.`);
+    } else if (isHomeBet && homeCampaign?.giantKills >= 1) {
+      const notable = homeCampaign.notableResults[0];
+      parts.push(`${home} have proven they can beat top opposition in this competition${notable ? ` (${notable.result === "W" ? "beat" : "drew"} ${notable.opponent})` : ""}, which backs up the selection.`);
+    } else if (isAwayBet && awayCampaign?.giantKills >= 1) {
+      const notable = awayCampaign.notableResults[0];
+      parts.push(`${away} have already taken notable scalps in this competition${notable ? ` (${notable.result === "W" ? "beat" : "drew"} ${notable.opponent})` : ""}, showing they can perform away from home in Europe.`);
+    }
   }
 
   // ─── H2H CONTEXT ──────────────────────────────────────────
@@ -1127,6 +1289,26 @@ export function generateProsCons(fix, market, aiProb, edge) {
     if (isAwayBet && awayPower.rating - homePower.rating >= 15) {
       pros.push(`Squad quality advantage (Power ${awayPower.rating} vs ${homePower.rating})`);
     }
+
+    // European campaign performance
+    const homeCampaign = fix._homeCampaign;
+    const awayCampaign = fix._awayCampaign;
+
+    if (isHomeBet && homeCampaign?.giantKills >= 1) {
+      const notable = homeCampaign.notableResults[0];
+      pros.push(`Proven in Europe: beat ${notable?.opponent || "top opposition"} this campaign`);
+    }
+    if (isAwayBet && awayCampaign?.giantKills >= 1) {
+      const notable = awayCampaign.notableResults[0];
+      pros.push(`Proven in Europe: beat ${notable?.opponent || "top opposition"} this campaign`);
+    }
+    // Campaign as a con — opponent has giant-killer status
+    if (isHomeBet && awayCampaign?.isOverperformer) {
+      cons.push(`${away} are European giant killers — they've beaten ${awayCampaign.giantKills} team(s) rated 80+`);
+    }
+    if (isAwayBet && homeCampaign?.isOverperformer) {
+      cons.push(`${home} are European giant killers at home — dangerous opponents despite lower Power rating`);
+    }
   }
 
   // ─── CONS (honest risk factors) ───────────────────────────
@@ -1188,9 +1370,20 @@ export function generateOpportunities(fixtures, allowedMarkets) {
       const homePower = getClubPowerRating(fix.home);
       const awayPower = getClubPowerRating(fix.away);
       fix._powerRatingDiff = homePower.rating - awayPower.rating; // positive = home stronger
+
+      // European Campaign Performance: actual results in this competition
+      // Bodø/Glimt beat Inter? That overrides the "weak Norwegian team" penalty
+      const homeCampaign = analyzeEuropeanCampaign(fix.home, fixtures);
+      const awayCampaign = analyzeEuropeanCampaign(fix.away, fixtures);
+      const homeBoost = homeCampaign?.campaignBoost || 0;
+      const awayBoost = awayCampaign?.campaignBoost || 0;
+      fix._campaignBoostDiff = homeBoost - awayBoost; // positive = home has better European results
+      fix._homeCampaign = homeCampaign;
+      fix._awayCampaign = awayCampaign;
     } else {
       fix._leagueStrengthDiff = 0; // Same league, no adjustment needed
       fix._powerRatingDiff = 0;    // Power ratings only apply in European comps
+      fix._campaignBoostDiff = 0;
     }
 
     // Generate context insights for this fixture (pass all fixtures for cross-reference)
