@@ -5,6 +5,7 @@
 import { useState, useEffect } from "react";
 import { fetchMatchData, generateOpportunities, MARKET_CATEGORIES, marketDisplayName } from "./api.js";
 import { FormPills, ProsCons } from "./TeamStatsCard.jsx";
+import { AffiliateTipButton, AFFILIATE_CSS } from "./AffiliateCTA.jsx";
 
 // ─── REASONING ENGINE ─────────────────────────────────────────────────
 // Generates a natural-language paragraph explaining WHY this bet has value.
@@ -356,6 +357,11 @@ export default function TipsPage() {
 
                 {/* Pros/Cons */}
                 <ProsCons pros={tip.pros} cons={tip.cons} />
+
+                {/* Affiliate CTA */}
+                <div style={{ marginTop: 12 }}>
+                  <AffiliateTipButton market={tip.market} odds={tip.bookmakerOdds} />
+                </div>
 
                 {/* Context Insights (expandable) */}
                 {tip.analysis?.contextInsights?.length > 0 && (
