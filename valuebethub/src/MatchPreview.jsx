@@ -3,7 +3,7 @@
 // Can be opened from league tips, today's tips, or directly.
 
 import { useState, useEffect } from "react";
-import { fetchMatchData, generateOpportunities, MARKET_CATEGORIES } from "./api.js";
+import { fetchMatchData, generateOpportunities, MARKET_CATEGORIES, marketDisplayName } from "./api.js";
 import { ProsCons, FullTeamStats } from "./TeamStatsCard.jsx";
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -125,7 +125,7 @@ export default function MatchPreviewPage({ matchTip, allFixtures, onBack }) {
               <div className="mp-best-bet">
                 <div className="mp-best-bet-label">🎯 Best Bet</div>
                 <div className="mp-best-bet-pick">
-                  <span className="mp-best-bet-market">{bestBet.market}</span>
+                  <span className="mp-best-bet-market">{marketDisplayName(bestBet.market)}</span>
                   <span className="mp-best-bet-odds">@ {bestBet.bookmakerOdds}</span>
                   {parseFloat(bestBet.edge) > 0 && (
                     <span className="mp-best-bet-edge">+{bestBet.edge}% edge</span>
@@ -141,7 +141,7 @@ export default function MatchPreviewPage({ matchTip, allFixtures, onBack }) {
                 <span style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>Also consider: </span>
                 {topValueBets.slice(1).map((vb, i) => (
                   <span key={i} className="mp-also-chip">
-                    {vb.market} @ {vb.bookmakerOdds}
+                    {marketDisplayName(vb.market)} @ {vb.bookmakerOdds}
                   </span>
                 ))}
               </div>
@@ -299,7 +299,7 @@ export default function MatchPreviewPage({ matchTip, allFixtures, onBack }) {
                   const edge = parseFloat(opp.edge);
                   return (
                     <div key={opp.id} className={`mp-market-row ${edge > 0 ? "value" : ""}`}>
-                      <span className="mp-market-name">{opp.market}</span>
+                      <span className="mp-market-name">{marketDisplayName(opp.market)}</span>
                       <span className="mp-market-odds">{opp.bookmakerOdds}</span>
                       <span style={{ color: "var(--green-400)" }}>{opp.aiProbability}%</span>
                       <span>{opp.impliedProbability}%</span>
