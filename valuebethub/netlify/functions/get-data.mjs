@@ -373,12 +373,8 @@ function transformFixture(fixture, prediction, injuries, odds) {
 
     odds: parsedOdds,
 
-    homeLeaguePos: homeLStats.fixtures?.played?.total
-      ? Math.max(1, Math.round(20 * (1 - (homeLStats.fixtures?.wins?.total || 0) / (homeLStats.fixtures?.played?.total || 1))))
-      : null,
-    awayLeaguePos: awayLStats.fixtures?.played?.total
-      ? Math.max(1, Math.round(20 * (1 - (awayLStats.fixtures?.wins?.total || 0) / (awayLStats.fixtures?.played?.total || 1))))
-      : null,
+    homeLeaguePos: prediction?.teams?.home?.league?.standing || null,
+    awayLeaguePos: prediction?.teams?.away?.league?.standing || null,
 
     homeXGFor: homeLStats.goals?.for?.average?.total ? parseFloat(homeLStats.goals.for.average.total) : 1.3,
     homeXGAgainst: homeLStats.goals?.against?.average?.total ? parseFloat(homeLStats.goals.against.average.total) : 1.1,
