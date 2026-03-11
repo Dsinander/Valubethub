@@ -3,7 +3,7 @@
 // Auto-generates from the same API data. Each league = unique content = SEO gold.
 
 import { useState, useEffect } from "react";
-import { fetchMatchData, generateOpportunities, MARKET_CATEGORIES } from "./api.js";
+import { fetchMatchData, generateOpportunities, MARKET_CATEGORIES, marketDisplayName } from "./api.js";
 import { FormPills, ProsCons } from "./TeamStatsCard.jsx";
 
 const LEAGUE_META = {
@@ -191,7 +191,7 @@ export default function LeagueTipsPage({ onMatchPreview }) {
                     <div className="lt-tip-pick">
                       <div>
                         <div className="lt-tip-pick-label">Our Pick</div>
-                        <div className="lt-tip-pick-market">{tip.market}</div>
+                        <div className="lt-tip-pick-market">{marketDisplayName(tip.market)}</div>
                       </div>
                       <div style={{ textAlign: "right" }}>
                         <div className="lt-tip-odds">{tip.bookmakerOdds}</div>
