@@ -44,8 +44,8 @@ const BOOKMAKERS = [
   },
 ];
 
-const activeBookmakers = BOOKMAKERS.filter(b => b.active);
-const hasAffiliates = activeBookmakers.length > 0;
+export const activeBookmakers = BOOKMAKERS.filter(b => b.active);
+export const hasAffiliates = activeBookmakers.length > 0;
 
 // ─── SINGLE CTA BUTTON (for tip cards) ──────────────────────────────
 export function AffiliateTipButton({ market, odds }) {
