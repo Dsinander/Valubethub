@@ -6,6 +6,7 @@
 import { useState, useEffect } from "react";
 import { fetchMatchData, generateOpportunities, buildSlip, MARKET_CATEGORIES, marketDisplayName } from "./api.js";
 import { FormPills, MatchFormHeader, ProsCons } from "./TeamStatsCard.jsx";
+import { activeBookmakers } from "./AffiliateCTA.jsx";
 
 // ═══════════════════════════════════════════════════════════════════════
 // SLIP PROFILES — each has a different personality and strategy
@@ -310,9 +311,16 @@ export default function DailySlipsPage() {
               <span style={{ color: "var(--text-secondary)" }}>{profile.stakeAdvice}</span>
             </div>
 
-            {/* CTA — affiliate placeholder */}
-            <a href="#" className="ds-cta" style={{ background: `linear-gradient(135deg, ${profile.color}, ${profile.color}dd)` }} onClick={e => e.preventDefault()}>
-              Place {profile.name} →
+            {/* CTA — affiliate */}
+            <a
+              href={activeBookmakers[0]?.url || "#"}
+              target="_blank"
+              rel="noopener noreferrer sponsored"
+              className="ds-cta"
+              style={{ background: "linear-gradient(135deg, var(--gold-500), var(--gold-300))" }}
+              onClick={e => { if (!activeBookmakers[0]?.url || activeBookmakers[0].url === "#") e.preventDefault(); }}
+            >
+              {activeBookmakers[0] ? `Place ${profile.name} at ${activeBookmakers[0].name} →` : `Place ${profile.name} →`}
             </a>
 
             {/* Risk Warning */}
